@@ -5,6 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Edgerton, OH — Buy vs. Airbnb</title>
   <meta name="description" content="Interactive calculator: does buying a house near Edgerton, OH beat continuing to book Airbnbs there?" />
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🏡</text></svg>" />
   <link rel="stylesheet" href="./src/styles.css" />
   <script src="./vendor/chart.umd.min.js"></script>
 </head>
@@ -20,25 +21,31 @@
       <button id="reset-btn">Reset to defaults</button>
     </div>
 
+    <nav class="jump-nav">
+      <a href="#inputs-panel">Inputs</a>
+      <a href="#summary">Summary</a>
+      <a href="#chart-panel">Chart</a>
+      <a href="#reference-panel">Sensitivity &amp; history</a>
+    </nav>
+
     <div class="layout">
-      <div id="input-form"></div>
+      <aside class="inputs-panel" id="inputs-panel">
+        <div class="tab-bar" id="input-tab-bar"></div>
+        <div id="input-form"></div>
+      </aside>
 
       <div class="results">
         <div id="summary"></div>
 
-        <div class="chart-panel">
+        <div class="chart-panel" id="chart-panel">
           <canvas id="net-cost-chart"></canvas>
         </div>
 
-        <div class="panel">
-          <h2>Sensitivity: how breakeven shifts</h2>
+        <div class="panel" id="reference-panel">
+          <div class="tab-bar" id="reference-tab-bar"></div>
           <div id="sensitivity"></div>
+          <div id="history-panel" hidden></div>
         </div>
-
-        <details class="panel">
-          <summary style="cursor:pointer; font-weight:600;">Historical Airbnb trips backing the defaults</summary>
-          <div id="history-panel" style="margin-top:10px;"></div>
-        </details>
       </div>
     </div>
 

@@ -12,7 +12,8 @@ Live at: `https://mbernstein07-oss.github.io/edgerton-house-model/` once GitHub 
 - Computes a year-by-year "net cost" for two paths — **Buy** and **Keep doing Airbnb** — where net cost = cumulative cash spent minus the value you'd have to show for it (home equity if sold, or an invested cash balance).
 - Reports the **breakeven year**: the first year Buy's net cost drops below Airbnb's net cost, if that happens within your time horizon.
 - Shows a small **sensitivity table**: how the breakeven year shifts if appreciation, mortgage rate, or (when renting) occupancy comes in higher or lower than assumed.
-- Seeds the Airbnb-baseline inputs (nightly rate, nights/trip) from **real historical trip data** pulled from Gmail, with an auditable table of the underlying trips — see below.
+- Seeds the Airbnb-baseline inputs (nightly rate, nights/trip, trips/year) from **real historical trip data** pulled from Gmail, with an auditable table of the underlying trips — see below.
+- Inputs are organized as **tabs** (Airbnb / Purchase / Ownership / Usage / Financial) instead of one long scroll, with a dot on any tab that's been changed from its default. The summary card stays pinned at the top of the results column while you tune inputs. A small "Sensitivity & history" jump link appears at the top on narrow screens.
 
 ## Project layout
 
@@ -64,23 +65,25 @@ A few defaults are **overridden at load time** by real data instead of being har
 
 `data/airbnb-history.json` holds real trip history for the Edgerton/Williams County, OH area, pulled from Gmail. `src/history.js` aggregates it into computed defaults for the "Airbnb baseline" section (avg nightly rate, avg nights/trip) at page load — those computed values still show up as ordinary editable sliders, they're just pre-filled from reality instead of a guess. The raw trips are listed in the collapsible "Historical Airbnb trips backing the defaults" panel on the page so the numbers are auditable, not a black box.
 
-**Confirmation logic:** a trip only counts as "used" (and feeds the defaults) if both a booking confirmation email *and* a matching post-stay review email (the "leave a review" prompt Airbnb sends a day or two after checkout, and/or the host's review of the guest) were found for the same reservation. A booking confirmation with no matching review email is filed under `unconfirmedTrips` in the JSON instead — logged, but excluded from the averages, since a booking alone doesn't prove the trip wasn't cancelled.
+**Confirmation logic:** a trip only counts as "used" (and feeds the defaults) if both a booking confirmation email *and* a matching post-stay review email (the "leave a review" prompt Airbnb sends a day or two after checkout, and/or the host's review of the guest) were found for the same reservation. A booking confirmation with an explicit cancellation email, or with no matching review email, is filed under `unconfirmedTrips` in the JSON instead — logged, but excluded from the averages.
 
-As of the last refresh (2026-08-15), there is **one** confirmed trip in the dataset — a 9-night stay at Newdale Bungalow in Bryan, OH (~8 miles from Edgerton), May 14–23, 2026. With only one data point, the "trips per year" default was deliberately *not* overridden by history (one trip doesn't establish a cadence); nightly rate and nights/trip were, since those are reasonable to anchor on a single real stay. As more trips accumulate, `history.js` will start trusting the trips/year average too (currently gated at 3+ confirmed trips — see `historyToInputOverrides` in `src/history.js`).
+As of the last refresh (2026-08-15), there are **5 confirmed trips** in the dataset, all within about an hour's drive of Edgerton: Avilla, IN (Dec 2023); Auburn, IN (Sep 2024); Fort Wayne, IN (Sep 2024); Hicksville, OH (Nov 2025); and Bryan, OH (May 2026) — plus 3 more bookings in the same area that were cancelled before check-in (also logged, for a complete picture, but excluded from the averages). With 5 confirmed trips, `history.js` now overrides nightly rate, nights/trip, *and* trips/year from real data (trips/year is gated at 3+ confirmed trips — see `historyToInputOverrides` in `src/history.js` — since one or two trips don't establish a cadence).
 
 ### Refreshing the historical dataset
 
 This is not a live integration — refreshing means re-running a Gmail search and hand-editing the JSON, the same pattern used for other trackers built on this account (e.g. a ticket-purchase tracker that works the same way). To pull in new trips:
 
-1. Search Gmail for new Airbnb activity in the area since the last recorded trip's `checkIn` date:
+1. **Search broad, then filter by distance — don't search by destination keyword.** The area around Edgerton doesn't have one town name to search for; people book Airbnbs in whichever nearby town has a listing, which for this account has included Bryan/Hicksville OH *and* Auburn/Fort Wayne/Avilla IN — all roughly an hour's drive of Edgerton in different directions. Searching for "Edgerton" or a couple of known Ohio town names will miss real trips (this happened on the first pass at this dataset). Instead, pull every new-reservation confirmation email since the last recorded trip:
    ```
-   from:(automated@airbnb.com OR express@airbnb.com) ("Bryan, OH" OR "Edgerton" OR "Williams County" OR "Montpelier, OH" OR "Defiance, OH" OR <specific listing name/address if known>) after:<last-trip-checkout-date>
+   from:(automated@airbnb.com OR express@airbnb.com) (subject:"You're all set for" OR subject:"Confirmed: Your" OR subject:"Reservation confirmed for") after:<last-trip-checkout-date>
    ```
-2. For each new booking confirmation found, look for a matching post-stay email in the same thread or nearby in time — subject lines like *"Write a review for \<host\>"* or *"\<host\> shared a review of your stay in \<city\>"*. Only trips with both count as confirmed.
-3. Pull check-in/check-out dates, total price paid, nightly rate, cleaning fee (if broken out separately — many hosts don't), and the booking date from the confirmation/receipt email.
-4. Append a new entry to the `trips` array in `data/airbnb-history.json` (same shape as the existing entry, including the `confirmationEvidence` block with the Gmail thread IDs for both the booking and review emails, for auditability). Add anything confirmation-only-no-review to `unconfirmedTrips` instead.
-5. Update `_meta.lastRefreshed`.
-6. Commit the updated JSON. Nothing else needs to change — `history.js` re-aggregates on next page load.
+   (Airbnb has used more than one confirmation-email subject template over time — the query above covers the ones seen so far. If a refresh turns up a trip with a subject that doesn't match any of these, add the new pattern to this list.)
+2. For each result, open the email and check the destination address against a map — is it within about an hour of Edgerton? Discard anything that isn't.
+3. For everything that is, check for a matching post-stay email in the same thread or nearby in time — subject lines like *"Write a review for \<host\>"* or *"\<host\> shared a review of your stay in \<city\>"*. Only trips with both a confirmation and a review count as confirmed. If a "Reservation Canceled" email shows up for that confirmation code instead, it's a cancellation, not a trip.
+4. Pull check-in/check-out dates, total price paid, nightly rate, cleaning fee (if broken out separately — many hosts don't), and the booking date from the confirmation/receipt email. If a reservation was later extended or modified, cross-check the review email's stated date range (e.g. "Dalen · Dec 24 – 30") against the original booking — it's often the more reliable source for the *actual* final dates than the modification-notice emails, which don't always restate the new checkout date.
+5. Append a new entry to the `trips` array in `data/airbnb-history.json` (same shape as the existing entries, including the `confirmationEvidence` block with the Gmail thread IDs for both the booking and review emails, for auditability). Add cancelled or unreviewed bookings to `unconfirmedTrips` instead, with a `reason`.
+6. Update `_meta.lastRefreshed`.
+7. Commit the updated JSON. Nothing else needs to change — `history.js` re-aggregates on next page load.
 
 The JSON is meant to be human-readable and hand-editable: if a record needs correcting (e.g. a price was mis-parsed), just edit it directly.
 

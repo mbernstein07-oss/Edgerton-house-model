@@ -2,10 +2,104 @@
   "_meta": {
     "description": "Historical Airbnb trip data for the Edgerton, OH area, sourced from Gmail confirmation + review emails. See README.md 'Refreshing the historical dataset' for how to re-run this sweep.",
     "lastRefreshed": "2026-08-15",
-    "searchArea": "Edgerton, OH and surrounding Williams County (Bryan, Montpelier, Defiance)",
-    "confirmationMethod": "A trip is only counted as 'used' if both a booking confirmation email AND a matching post-stay review email (host review of guest, and/or the 'write a review' prompt to guest) were found in Gmail. Bookings with no matching review email are listed under unconfirmedTrips instead of trips."
+    "searchArea": "Within roughly an hour's drive of Edgerton, OH in any direction — covers Williams County OH (Bryan, Hicksville) and the adjacent northeast Indiana towns people actually book when visiting the area (Auburn, Fort Wayne, Avilla).",
+    "searchWindow": "Past 3 years (since 2023-08-15)",
+    "confirmationMethod": "A trip is only counted as 'used' if both a booking confirmation email AND a matching post-stay review email (host review of guest, and/or the 'write a review' prompt to guest) were found in Gmail. Bookings with no matching review email, or with an explicit cancellation email, are listed under unconfirmedTrips instead of trips.",
+    "refreshNote": "The first pass at this dataset only searched for Ohio town names near Edgerton and found one trip. Re-running with 'search everything, then filter by distance' instead of 'search by keyword' turned up 4 more confirmed trips plus 3 cancelled attempts, all in nearby northeast Indiana. Search by destination keyword only for towns you already know matter — for an area this rural, pull every trip in the window first and filter by distance after."
   },
   "trips": [
+    {
+      "id": "HM4TZ3XA49",
+      "propertyName": "Country Home with pond",
+      "host": "Dalen",
+      "address": "1405 E Albion St, Avilla, IN 46710",
+      "distanceNoteFromEdgerton": "~48 miles / ~55 min from Edgerton, OH",
+      "bookingDate": "2023-10-05",
+      "checkIn": "2023-12-24",
+      "checkOut": "2023-12-30",
+      "nights": 6,
+      "guests": { "adults": 4, "pets": 1 },
+      "totalPricePaid": 1046.77,
+      "cleaningFeeBrokenOut": null,
+      "cleaningFeeNote": "No separate cleaning fee itemized in the confirmation email; total price paid is all-in (lodging + fees, across two scheduled payments).",
+      "effectiveNightlyRateAllIn": 174.46,
+      "notes": "Originally booked as 4 nights (Dec 24-28); the guest-review email confirms the actual stay ran through Dec 30 (6 nights) after an in-app extension. Figures above reflect the final, as-stayed reservation.",
+      "status": "confirmed",
+      "confirmationEvidence": {
+        "bookingConfirmationEmail": { "subject": "Reservation confirmed for Avilla", "date": "2023-10-06", "gmailThreadId": "18b0299b97030c1f" },
+        "reviewPromptEmail": { "subject": "Write a review for Dalen", "date": "2023-12-30", "gmailThreadId": "18cbc6307b247270" },
+        "hostReviewEmail": { "subject": "Thanks for being a great guest! (Dalen, Dec 24 – 30, Country Home with pond)", "date": "2023-12-31", "gmailThreadId": "18cbd85b73ce0e42" }
+      }
+    },
+    {
+      "id": "HMPCE4FPAC",
+      "propertyName": "Charming Family Retreat Near Downtown Auburn",
+      "host": "Nathan",
+      "address": "330 W 15th St, Auburn, IN 46706",
+      "distanceNoteFromEdgerton": "~33 miles / ~40 min from Edgerton, OH",
+      "bookingDate": "2024-09-03",
+      "checkIn": "2024-09-03",
+      "checkOut": "2024-09-06",
+      "nights": 3,
+      "guests": { "adults": 2 },
+      "totalPricePaid": 1060.84,
+      "cleaningFeeBrokenOut": null,
+      "cleaningFeeNote": "No separate cleaning fee itemized. Total includes an original payment of $383.43 plus a $677.41 mid-stay reservation-change charge; the review prompt fired right at the originally-booked Sep 6 checkout, so the extra charge was a reservation upgrade (likely partial- to whole-home access, based on pre-booking messages), not additional nights.",
+      "effectiveNightlyRateAllIn": 353.61,
+      "notes": "Nightly rate here is inflated by the mid-stay upgrade charge rather than reflecting a true 'per night to book this place' rate — worth a manual look if it skews the average.",
+      "status": "confirmed",
+      "confirmationEvidence": {
+        "bookingConfirmationEmail": { "subject": "Reservation confirmed for Auburn", "date": "2024-09-03", "gmailThreadId": "191b81be440736ff" },
+        "reviewPromptEmail": { "subject": "Write a review for Nathan", "date": "2024-09-06", "gmailThreadId": "191c86b25383e57f" },
+        "hostReviewEmail": { "subject": "Thanks for being a great guest! (Nathan, Your Host in Auburn)", "date": "2024-09-08", "gmailThreadId": "191d2401bfffff5e" }
+      }
+    },
+    {
+      "id": "HMQYREETPZ",
+      "propertyName": "Pavillion House",
+      "host": "Jack",
+      "address": "1303 Rabus Dr, Fort Wayne, IN 46825",
+      "distanceNoteFromEdgerton": "~48 miles / ~55 min from Edgerton, OH",
+      "bookingDate": "2024-09-15",
+      "checkIn": "2024-09-15",
+      "checkOut": "2024-09-22",
+      "nights": 7,
+      "guests": { "adults": 2, "pets": 1 },
+      "totalPricePaid": 1157.13,
+      "cleaningFeeBrokenOut": null,
+      "cleaningFeeNote": "No separate cleaning fee itemized; total price paid is all-in.",
+      "effectiveNightlyRateAllIn": 165.30,
+      "notes": null,
+      "status": "confirmed",
+      "confirmationEvidence": {
+        "bookingConfirmationEmail": { "subject": "Reservation confirmed for Fort Wayne", "date": "2024-09-15", "gmailThreadId": "191f61492f047294" },
+        "reviewPromptEmail": { "subject": "Write a review for Jack", "date": "2024-09-22", "gmailThreadId": "1921ae9bfa85d19c" },
+        "hostReviewEmail": { "subject": "Thanks for being a great guest! (Jack, Your Host in Fort Wayne)", "date": "2024-09-23", "gmailThreadId": "1921c4e6d4788825" }
+      }
+    },
+    {
+      "id": "HMR2EJD32R",
+      "propertyName": "Peaceful 3-Acre Escape | Scenic & Central",
+      "host": "Lydia",
+      "address": "2108 Seevers Rd, Hicksville, OH 43526",
+      "distanceNoteFromEdgerton": "~15 miles / ~20 min from Edgerton, OH",
+      "bookingDate": "2025-08-21",
+      "checkIn": "2025-11-16",
+      "checkOut": "2025-11-30",
+      "nights": 14,
+      "guests": { "adults": 2 },
+      "totalPricePaid": 1337.64,
+      "cleaningFeeBrokenOut": null,
+      "cleaningFeeNote": "No separate cleaning fee itemized; total price paid is all-in.",
+      "effectiveNightlyRateAllIn": 95.55,
+      "notes": "Same property/host as the cancelled Jan 4-18, 2026 booking below — a repeat stay the guest liked enough to try to rebook.",
+      "status": "confirmed",
+      "confirmationEvidence": {
+        "bookingConfirmationEmail": { "subject": "Confirmed: Your reservation for Nov 16 – 30", "date": "2025-08-21", "gmailThreadId": "198ca924cca47b2b" },
+        "reviewPromptEmail": { "subject": "Write a review for Lydia", "date": "2025-11-30", "gmailThreadId": "19ad6a28ec4ddd77" },
+        "hostReviewEmail": { "subject": "Lydia shared a review of your stay in Hicksville", "date": "2025-12-01", "gmailThreadId": "19ad7a83a9eaa1b5" }
+      }
+    },
     {
       "id": "HM5DPKNCCE",
       "propertyName": "Newdale Bungalow",
@@ -33,5 +127,58 @@
       }
     }
   ],
-  "unconfirmedTrips": []
+  "unconfirmedTrips": [
+    {
+      "id": "HMB4X4SYWB",
+      "propertyName": "Peace at Greyson",
+      "host": "Michael",
+      "address": "1917 Greyson Dr, Auburn, IN 46706",
+      "distanceNoteFromEdgerton": "~33 miles / ~40 min from Edgerton, OH",
+      "bookingDate": "2024-06-22",
+      "plannedCheckIn": "2024-07-01",
+      "plannedCheckOut": "2024-07-07",
+      "plannedNights": 6,
+      "totalPricePaid": 0,
+      "status": "cancelled",
+      "reason": "Cancelled by guest 2024-06-30, one day before check-in. Full refund of $1,048.06 issued.",
+      "confirmationEvidence": {
+        "cancellationEmail": { "subject": "Airbnb Reservation Canceled (Peace at Greyson, Jul 1 – 7)", "date": "2024-06-30", "gmailThreadId": "19066ef1f2b214d0" }
+      }
+    },
+    {
+      "id": "HMYSHQJZ8Q",
+      "propertyName": "Peaceful 3-Acre Escape | Scenic & Central",
+      "host": "Lydia",
+      "address": "2108 Seevers Rd, Hicksville, OH 43526",
+      "distanceNoteFromEdgerton": "~15 miles / ~20 min from Edgerton, OH",
+      "bookingDate": "2025-09-19",
+      "plannedCheckIn": "2026-01-04",
+      "plannedCheckOut": "2026-01-18",
+      "plannedNights": 14,
+      "totalPricePaid": 0,
+      "status": "cancelled",
+      "reason": "Booked right after the confirmed Nov 2025 stay at the same property ('why not nab it, we can cancel by Dec 22' per the guest's own forwarded note), then cancelled by guest 2025-12-01. Full refund of $1,264.71 issued.",
+      "confirmationEvidence": {
+        "bookingConfirmationEmail": { "subject": "Confirmed: Your reservation for Jan 4 – 18", "date": "2025-09-19", "gmailThreadId": "199603b92e11b4eb" },
+        "cancellationEmail": { "subject": "Airbnb Reservation Canceled (Peaceful 3-Acre Escape, Jan 4 – 18)", "date": "2025-12-01", "gmailThreadId": "19ada98ee5b408fe" }
+      }
+    },
+    {
+      "id": "HM9FRTP4T3",
+      "propertyName": "All the Best of Auburn",
+      "host": "Brent",
+      "address": "219 E 18th St, Auburn, IN 46706",
+      "distanceNoteFromEdgerton": "~33 miles / ~40 min from Edgerton, OH",
+      "bookingDate": "2026-03-21",
+      "plannedCheckIn": "2026-07-02",
+      "plannedCheckOut": "2026-07-07",
+      "plannedNights": 5,
+      "totalPricePaid": 0,
+      "status": "cancelled",
+      "reason": "Cancelled by guest 2026-05-16, about 6 weeks before check-in. Refund issued.",
+      "confirmationEvidence": {
+        "cancellationEmail": { "subject": "Airbnb Reservation Canceled (All the Best of Auburn, Jul 2 – 7)", "date": "2026-05-16", "gmailThreadId": "19e332740b100b6e" }
+      }
+    }
+  ]
 }

@@ -7,6 +7,8 @@ const STATE_PARAM = "s";
 const FIELD_GROUPS = [
   {
     id: "airbnb",
+    badge: "A",
+    tabLabel: "Airbnb",
     title: "A. Airbnb baseline (status quo)",
     fields: [
       { key: "airbnbNightlyRate", label: "Avg nightly rate", type: "range", min: 50, max: 500, step: 5, unit: "$" },
@@ -18,6 +20,8 @@ const FIELD_GROUPS = [
   },
   {
     id: "purchase",
+    badge: "B",
+    tabLabel: "Purchase",
     title: "B. Purchase",
     fields: [
       { key: "purchasePrice", label: "Purchase price", type: "range", min: 100000, max: 400000, step: 5000, unit: "$" },
@@ -32,6 +36,8 @@ const FIELD_GROUPS = [
   },
   {
     id: "ownership",
+    badge: "C",
+    tabLabel: "Ownership",
     title: "C. Ongoing ownership costs",
     fields: [
       { key: "propertyTaxRate", label: "Property tax rate (Williams County, OH)", type: "range", min: 0.5, max: 3, step: 0.05, unit: "%", scale: 100 },
@@ -43,6 +49,8 @@ const FIELD_GROUPS = [
   },
   {
     id: "usage",
+    badge: "D",
+    tabLabel: "Usage",
     title: "D. Usage & offset",
     fields: [
       { key: "personalNightsPerYear", label: "Nights/year you'd personally use the house", type: "range", min: 0, max: 120, step: 1, unit: "nights" },
@@ -58,6 +66,8 @@ const FIELD_GROUPS = [
   },
   {
     id: "financial",
+    badge: "F",
+    tabLabel: "Financial",
     title: "F. Financial comparison",
     fields: [
       { key: "horizonYears", label: "Time horizon to model", type: "range", min: 3, max: 20, step: 1, unit: "yrs" },
@@ -211,21 +221,44 @@ function round(n, step) {
   return Number(n.toFixed(decimals));
 }
 
-function renderForm(container, state, onChange) {
-  container.innerHTML = "";
-  for (const group of FIELD_GROUPS) {
-    const details = document.createElement("details");
-    details.open = true;
-    details.className = "field-group";
-    const summary = document.createElement("summary");
-    summary.textContent = group.title;
-    details.appendChild(summary);
+function groupHasCustomValue(group, state) {
+  return group.fields.some((f) => state[f.key] !== DEFAULT_INPUTS[f.key]);
+}
 
-    for (const field of group.fields) {
-      if (field.showIf && !field.showIf(state)) continue;
-      details.appendChild(renderField(field, state, onChange));
-    }
-    container.appendChild(details);
+function renderTabBar(container, tabs, activeId, onSelect) {
+  container.innerHTML = "";
+  container.setAttribute("role", "tablist");
+  for (const tab of tabs) {
+    const btn = document.createElement("button");
+    btn.type = "button";
+    btn.className = "tab" + (tab.id === activeId ? " active" : "");
+    btn.setAttribute("role", "tab");
+    btn.setAttribute("aria-selected", String(tab.id === activeId));
+    btn.innerHTML = `${tab.badge ? `<span class="tab-badge">${tab.badge}</span>` : ""}${tab.label}${tab.dirty ? `<span class="tab-dot" title="Adjusted from defaults"></span>` : ""}`;
+    btn.addEventListener("click", () => onSelect(tab.id));
+    container.appendChild(btn);
+  }
+}
+
+function renderForm(container, tabBarEl, state, activeGroupId, onChange, onTabSelect) {
+  renderTabBar(
+    tabBarEl,
+    FIELD_GROUPS.map((g) => ({ id: g.id, label: g.tabLabel, badge: g.badge, dirty: groupHasCustomValue(g, state) })),
+    activeGroupId,
+    onTabSelect
+  );
+
+  container.innerHTML = "";
+  const group = FIELD_GROUPS.find((g) => g.id === activeGroupId) || FIELD_GROUPS[0];
+
+  const heading = document.createElement("h2");
+  heading.className = "input-group-title";
+  heading.textContent = group.title;
+  container.appendChild(heading);
+
+  for (const field of group.fields) {
+    if (field.showIf && !field.showIf(state)) continue;
+    container.appendChild(renderField(field, state, onChange));
   }
 }
 
@@ -292,7 +325,7 @@ function renderHistoryPanel(container, aggregate) {
     .join("");
 
   const unconfirmed = aggregate.unconfirmedTrips && aggregate.unconfirmedTrips.length
-    ? `<p class="muted">${aggregate.unconfirmedTrips.length} booking(s) found with no matching review email — excluded as possibly cancelled.</p>`
+    ? `<p class="muted">${aggregate.unconfirmedTrips.length} other booking(s) in the area were cancelled before check-in (or never got a matching review email) — excluded from the averages above.</p>`
     : "";
 
   container.innerHTML = `
@@ -318,14 +351,43 @@ export async function initApp(root) {
   }
 
   let state = { ...DEFAULT_INPUTS, ...historyOverrides, ...decodeState() };
+  let activeInputTab = FIELD_GROUPS[0].id;
+  let activeReferenceTab = "sensitivity";
 
+  const inputTabBarEl = root.querySelector("#input-tab-bar");
   const formEl = root.querySelector("#input-form");
   const summaryEl = root.querySelector("#summary");
   const chartCanvas = root.querySelector("#net-cost-chart");
+  const referenceTabBarEl = root.querySelector("#reference-tab-bar");
   const sensitivityEl = root.querySelector("#sensitivity");
   const historyEl = root.querySelector("#history-panel");
   const copyBtn = root.querySelector("#copy-link-btn");
   const resetBtn = root.querySelector("#reset-btn");
+
+  function renderInputs() {
+    renderForm(formEl, inputTabBarEl, state, activeInputTab, onChange, (tabId) => {
+      activeInputTab = tabId;
+      renderInputs();
+    });
+  }
+
+  function renderReferenceTabs() {
+    const tripCount = historyAggregate ? historyAggregate.tripCount : 0;
+    renderTabBar(
+      referenceTabBarEl,
+      [
+        { id: "sensitivity", label: "Sensitivity" },
+        { id: "history", label: `Trip history${tripCount ? ` (${tripCount})` : ""}` },
+      ],
+      activeReferenceTab,
+      (tabId) => {
+        activeReferenceTab = tabId;
+        renderReferenceTabs();
+      }
+    );
+    sensitivityEl.hidden = activeReferenceTab !== "sensitivity";
+    historyEl.hidden = activeReferenceTab !== "history";
+  }
 
   function recompute() {
     const result = runModel(state);
@@ -337,11 +399,12 @@ export async function initApp(root) {
 
   function onChange(key, value) {
     state = { ...state, [key]: value };
-    renderForm(formEl, state, onChange);
+    renderInputs();
     recompute();
   }
 
-  renderForm(formEl, state, onChange);
+  renderInputs();
+  renderReferenceTabs();
   renderHistoryPanel(historyEl, historyAggregate);
   recompute();
 
@@ -358,7 +421,7 @@ export async function initApp(root) {
 
   resetBtn.addEventListener("click", () => {
     state = { ...DEFAULT_INPUTS, ...historyOverrides };
-    renderForm(formEl, state, onChange);
+    renderInputs();
     recompute();
   });
 }
