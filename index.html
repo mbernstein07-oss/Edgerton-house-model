@@ -1,0 +1,55 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Edgerton, OH — Buy vs. Airbnb</title>
+  <meta name="description" content="Interactive calculator: does buying a house near Edgerton, OH beat continuing to book Airbnbs there?" />
+  <link rel="stylesheet" href="./src/styles.css" />
+  <script src="./vendor/chart.umd.min.js"></script>
+</head>
+<body>
+  <div class="page">
+    <header class="app-header">
+      <h1>Edgerton, OH: Buy a house, or keep Airbnb-ing?</h1>
+      <p>Adjust any assumption below — everything recalculates live, and the URL updates so you can send a specific scenario to someone else.</p>
+    </header>
+
+    <div class="toolbar">
+      <button id="copy-link-btn">Copy shareable link</button>
+      <button id="reset-btn">Reset to defaults</button>
+    </div>
+
+    <div class="layout">
+      <div id="input-form"></div>
+
+      <div class="results">
+        <div id="summary"></div>
+
+        <div class="chart-panel">
+          <canvas id="net-cost-chart"></canvas>
+        </div>
+
+        <div class="panel">
+          <h2>Sensitivity: how breakeven shifts</h2>
+          <div id="sensitivity"></div>
+        </div>
+
+        <details class="panel">
+          <summary style="cursor:pointer; font-weight:600;">Historical Airbnb trips backing the defaults</summary>
+          <div id="history-panel" style="margin-top:10px;"></div>
+        </details>
+      </div>
+    </div>
+
+    <footer class="app-footer">
+      <p>Planning tool, not financial advice. See <a href="./README.md">README</a> for assumptions, simplifications, and how to refresh the historical trip data.</p>
+    </footer>
+  </div>
+
+  <script type="module">
+    import { initApp } from "./src/ui.js";
+    initApp(document);
+  </script>
+</body>
+</html>

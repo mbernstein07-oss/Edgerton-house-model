@@ -1,0 +1,37 @@
+{
+  "_meta": {
+    "description": "Historical Airbnb trip data for the Edgerton, OH area, sourced from Gmail confirmation + review emails. See README.md 'Refreshing the historical dataset' for how to re-run this sweep.",
+    "lastRefreshed": "2026-08-15",
+    "searchArea": "Edgerton, OH and surrounding Williams County (Bryan, Montpelier, Defiance)",
+    "confirmationMethod": "A trip is only counted as 'used' if both a booking confirmation email AND a matching post-stay review email (host review of guest, and/or the 'write a review' prompt to guest) were found in Gmail. Bookings with no matching review email are listed under unconfirmedTrips instead of trips."
+  },
+  "trips": [
+    {
+      "id": "HM5DPKNCCE",
+      "propertyName": "Newdale Bungalow",
+      "host": "Dustin & Aimee",
+      "address": "911 Newdale Cir, Bryan, OH 43506",
+      "distanceNoteFromEdgerton": "~8 miles from Edgerton, OH — same immediate area / Williams County",
+      "bookingDate": "2026-03-19",
+      "checkIn": "2026-05-14",
+      "checkOut": "2026-05-23",
+      "nights": 9,
+      "guests": { "adults": 2, "pets": 1 },
+      "totalPricePaid": 2245.84,
+      "lodgingSubtotalAtOriginalBooking": 1048.00,
+      "nightlyRateAtOriginalBooking": 209.60,
+      "cleaningFeeBrokenOut": null,
+      "cleaningFeeNote": "Airbnb did not break out a separate cleaning fee for this listing; only a guest service fee was itemized on the original receipt ($147.95 on the first 5-night booking). Total price paid below is all-in (lodging + fees).",
+      "effectiveNightlyRateAllIn": 249.54,
+      "notes": "Booked as a 5-night stay (May 14-19), then extended twice by the guest via in-app reservation changes: first to 8 nights (through May 22), then to 9 nights (through May 23). Figures above reflect the final, as-stayed reservation.",
+      "status": "confirmed",
+      "confirmationEvidence": {
+        "bookingConfirmationEmail": { "subject": "Confirmed: Your May 14 – 19 trip, here's your Airbnb receipt", "date": "2026-03-19", "gmailThreadId": "19d036e8016e8144" },
+        "finalReceiptEmail": { "subject": "Your receipt from Airbnb (Receipt ID: RCYYC8W9M9)", "date": "2026-05-20", "gmailThreadId": "19e47cc7e79760e2" },
+        "reviewPromptEmail": { "subject": "Write a review for Dustin & Aimee", "date": "2026-05-23", "gmailThreadId": "19e5668ba80a414f" },
+        "hostReviewEmail": { "subject": "Dustin & Aimee shared a review of your stay in Bryan", "date": "2026-05-26", "gmailThreadId": "19e65380f22bf45f" }
+      }
+    }
+  ],
+  "unconfirmedTrips": []
+}

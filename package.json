@@ -1,0 +1,10 @@
+{
+  "name": "edgerton-house-model",
+  "private": true,
+  "type": "module",
+  "description": "Buy vs. Airbnb decision calculator for Edgerton, OH. Static site, no build step.",
+  "scripts": {
+    "test": "node tests/model.test.js",
+    "serve": "python3 -m http.server 8080"
+  }
+}
