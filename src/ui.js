@@ -1,6 +1,21 @@
 import { DEFAULT_INPUTS, runModel, sensitivitySweep } from "./model.js";
 import { loadHistory, aggregateHistory, historyToInputOverrides } from "./history.js";
-import { renderNetCostChart } from "./charts.js";
+import { renderCostChart } from "./charts.js";
+
+const CHART_MODES = [
+  {
+    id: "cash",
+    label: "Cash out of pocket",
+    explainer:
+      "Every dollar that actually leaves your pocket on each path — trip payments vs. the down payment plus all the carrying costs of owning. It doesn't yet count that the house is worth something when you sell; switch to “after resale” for that.",
+  },
+  {
+    id: "net",
+    label: "Cost after resale",
+    explainer:
+      "The true economic cost: the house is credited with its resale value (appreciation + loan paydown, minus selling costs), and the Airbnb path is credited with the investment growth on the cash you didn't sink into a down payment. Where the lines cross is the breakeven year; a value below zero means that path has come out ahead.",
+  },
+];
 
 const STATE_PARAM = "s";
 
@@ -263,20 +278,42 @@ function renderForm(container, tabBarEl, state, activeGroupId, onChange, onTabSe
 }
 
 function renderSummary(container, result) {
-  const { breakevenYear, summary, upfrontCash } = result;
-  const breakevenText = breakevenYear
-    ? `Breaks even in year ${breakevenYear}`
-    : `Does not break even within the ${result.inputs.horizonYears}-year horizon`;
+  const { breakevenYear, summary, upfrontCash, inputs } = result;
+  const horizon = inputs.horizonYears;
+  const year1 = result.years[1] || result.years[result.years.length - 1];
+  const last = result.years[result.years.length - 1];
+
+  const annualAirbnb = year1.airbnb.annualCost;
+  const annualOwn = year1.buy.annualCashOutflow; // carrying cost, net of any rental income
+  const cashAirbnb = last.airbnb.cumulativeCost;
+  const cashBuy = last.buy.cumulativeCashOutflow;
+  const netGap = summary.buyMinusAirbnbAtHorizon; // >0 means buying costs that much more, even after resale
+
+  const headline = breakevenYear
+    ? `Owning a ${fmtUSD(inputs.purchasePrice)} house pays off in year ${breakevenYear}`
+    : `Over ${horizon} years, owning a ${fmtUSD(inputs.purchasePrice)} house never catches up to Airbnb`;
+
+  const footnote = breakevenYear
+    ? `Counting the home's resale value and investment growth, owning pulls ahead in year ${breakevenYear} and ends ${horizon} years ${fmtUSD(Math.abs(netGap))} ahead.`
+    : `Even crediting the home's resale value and the investment growth on cash you didn't tie up, owning ends year ${horizon} about ${fmtUSD(Math.abs(netGap))} behind Airbnb.`;
 
   container.innerHTML = `
     <div class="summary-card">
-      <div class="summary-headline ${breakevenYear ? "positive" : "negative"}">${breakevenText}</div>
-      <div class="summary-grid">
-        <div><span class="k">Upfront cash to buy</span><span class="v">${fmtUSD(upfrontCash)}</span></div>
-        <div><span class="k">Buy: net cost at horizon</span><span class="v">${fmtUSD(summary.buyNetCostAtHorizon)}</span></div>
-        <div><span class="k">Airbnb: net cost at horizon</span><span class="v">${fmtUSD(summary.airbnbNetCostAtHorizon)}</span></div>
-        <div><span class="k">Difference (buy − airbnb)</span><span class="v ${summary.buyMinusAirbnbAtHorizon <= 0 ? "positive" : "negative"}">${fmtUSD(summary.buyMinusAirbnbAtHorizon)}</span></div>
+      <div class="summary-headline ${breakevenYear ? "positive" : "negative"}">${headline}</div>
+      <div class="summary-compare">
+        <div class="compare-col">
+          <div class="compare-label">Keep Airbnb-ing</div>
+          <div class="compare-big">${fmtUSD(annualAirbnb)}<span>/yr</span></div>
+          <div class="compare-sub">${fmtUSD(cashAirbnb)} paid over ${horizon} yrs</div>
+        </div>
+        <div class="compare-vs">vs</div>
+        <div class="compare-col">
+          <div class="compare-label">Own the house</div>
+          <div class="compare-big">${fmtUSD(annualOwn)}<span>/yr</span></div>
+          <div class="compare-sub">+ ${fmtUSD(upfrontCash)} upfront · ${fmtUSD(cashBuy)} over ${horizon} yrs</div>
+        </div>
       </div>
+      <div class="summary-footnote ${breakevenYear ? "positive" : "negative"}">${footnote}</div>
     </div>
   `;
 }
@@ -328,9 +365,12 @@ function renderHistoryPanel(container, aggregate) {
     ? `<p class="muted">${aggregate.unconfirmedTrips.length} other booking(s) in the area were cancelled before check-in (or never got a matching review email) — excluded from the averages above.</p>`
     : "";
 
+  const cadence =
+    aggregate.tripCount >= 3
+      ? ` ≈ ${aggregate.avgTripsPerYear.toFixed(1)} trips/yr across the ${aggregate.yearsSpanned.toFixed(1)}-year span they cover.`
+      : " Trips/year was left at a planning assumption — not enough history to trend it yet.";
   container.innerHTML = `
-    <p class="muted">${aggregate.tripCount} confirmed trip(s) backing the computed defaults (avg ${fmtUSD(aggregate.avgNightlyRate)}/night, ${aggregate.avgNightsPerTrip.toFixed(1)} nights/trip).
-    ${aggregate.tripCount < 3 ? " Trips/year default was left at a planning assumption since there's not yet enough history to trend it." : ""}</p>
+    <p class="muted">${aggregate.tripCount} confirmed trip(s) within about an hour of Edgerton back the computed defaults: avg ${fmtUSD(aggregate.avgNightlyRate)}/night, ${aggregate.avgNightsPerTrip.toFixed(1)} nights/trip,${cadence}</p>
     <table class="history-table">
       <thead><tr><th>Dates</th><th>Nights</th><th>Property</th><th>Total paid</th><th>$/night</th></tr></thead>
       <tbody>${rows}</tbody>
@@ -353,16 +393,38 @@ export async function initApp(root) {
   let state = { ...DEFAULT_INPUTS, ...historyOverrides, ...decodeState() };
   let activeInputTab = FIELD_GROUPS[0].id;
   let activeReferenceTab = "sensitivity";
+  let chartMode = "cash";
 
   const inputTabBarEl = root.querySelector("#input-tab-bar");
   const formEl = root.querySelector("#input-form");
   const summaryEl = root.querySelector("#summary");
   const chartCanvas = root.querySelector("#net-cost-chart");
+  const chartModeToggleEl = root.querySelector("#chart-mode-toggle");
+  const chartExplainerEl = root.querySelector("#chart-explainer");
   const referenceTabBarEl = root.querySelector("#reference-tab-bar");
   const sensitivityEl = root.querySelector("#sensitivity");
   const historyEl = root.querySelector("#history-panel");
   const copyBtn = root.querySelector("#copy-link-btn");
   const resetBtn = root.querySelector("#reset-btn");
+
+  function renderChartModeToggle() {
+    chartModeToggleEl.innerHTML = "";
+    for (const m of CHART_MODES) {
+      const btn = document.createElement("button");
+      btn.type = "button";
+      btn.textContent = m.label;
+      btn.className = m.id === chartMode ? "active" : "";
+      btn.addEventListener("click", () => {
+        if (chartMode === m.id) return;
+        chartMode = m.id;
+        renderChartModeToggle();
+        recompute();
+      });
+      chartModeToggleEl.appendChild(btn);
+    }
+    const active = CHART_MODES.find((m) => m.id === chartMode);
+    chartExplainerEl.textContent = active ? active.explainer : "";
+  }
 
   function renderInputs() {
     renderForm(formEl, inputTabBarEl, state, activeInputTab, onChange, (tabId) => {
@@ -392,7 +454,7 @@ export async function initApp(root) {
   function recompute() {
     const result = runModel(state);
     renderSummary(summaryEl, result);
-    renderNetCostChart(chartCanvas, result);
+    renderCostChart(chartCanvas, result, chartMode);
     renderSensitivity(sensitivityEl, state);
     updateUrl(state);
   }
@@ -404,6 +466,7 @@ export async function initApp(root) {
   }
 
   renderInputs();
+  renderChartModeToggle();
   renderReferenceTabs();
   renderHistoryPanel(historyEl, historyAggregate);
   recompute();

@@ -1,8 +1,8 @@
-// Chart.js rendering. Assumes the Chart.js UMD build is loaded globally via
-// CDN <script> in index.html (window.Chart). Kept separate from ui.js so the
-// chart-specific config lives in one place.
+// Chart.js rendering. Assumes the Chart.js UMD build is loaded globally (window.Chart).
+// Kept separate from ui.js so the chart-specific config lives in one place.
 
-let netCostChart = null;
+let costChart = null;
+let costChartMode = null;
 
 const COLOR_BUY = "#2c5c53";
 const COLOR_AIRBNB = "#a8632f";
@@ -39,67 +39,74 @@ const breakevenLinePlugin = {
   },
 };
 
-export function renderNetCostChart(canvas, result) {
-  const labels = result.years.map((r) => r.year);
-  const buyData = result.years.map((r) => Math.round(r.buy.netCost));
-  const airbnbData = result.years.map((r) => Math.round(r.airbnb.netCost));
+// mode: "cash" (default) plots the raw dollars each path takes out of pocket;
+// "net" plots the resale-/opportunity-cost-adjusted economic cost.
+function seriesFor(result, mode) {
+  if (mode === "net") {
+    return {
+      buy: result.years.map((r) => Math.round(r.buy.netCost)),
+      airbnb: result.years.map((r) => Math.round(r.airbnb.netCost)),
+      buyLabel: "Buy — cost after resale & investing",
+      airbnbLabel: "Airbnb — cost after investing the difference",
+      yTitle: "Net cost, lower = better (negative = ahead)",
+      breakevenYear: result.breakevenYear,
+    };
+  }
+  return {
+    buy: result.years.map((r) => Math.round(r.buy.cumulativeCashOutflow)),
+    airbnb: result.years.map((r) => Math.round(r.airbnb.cumulativeCost)),
+    buyLabel: "Buy the house — total cash paid",
+    airbnbLabel: "Keep Airbnb-ing — total cash paid",
+    yTitle: "Total cash out of pocket",
+    breakevenYear: null,
+  };
+}
 
-  const config = {
+export function renderCostChart(canvas, result, mode = "cash") {
+  const s = seriesFor(result, mode);
+  const labels = result.years.map((r) => r.year);
+
+  const data = {
+    labels,
+    datasets: [
+      { label: s.buyLabel, data: s.buy, borderColor: COLOR_BUY, backgroundColor: COLOR_BUY, tension: 0.15, pointRadius: 2 },
+      { label: s.airbnbLabel, data: s.airbnb, borderColor: COLOR_AIRBNB, backgroundColor: COLOR_AIRBNB, tension: 0.15, pointRadius: 2 },
+    ],
+  };
+
+  // Rebuild from scratch when the mode changes (axis title / breakeven line
+  // differ); otherwise update in place so slider drags don't flicker.
+  if (costChart && costChartMode === mode) {
+    costChart.data = data;
+    costChart.options.plugins.breakevenLine.year = s.breakevenYear;
+    costChart.update();
+    return costChart;
+  }
+
+  if (costChart) costChart.destroy();
+  costChartMode = mode;
+  costChart = new Chart(canvas, {
     type: "line",
-    data: {
-      labels,
-      datasets: [
-        {
-          label: "Buy the house (net cost)",
-          data: buyData,
-          borderColor: COLOR_BUY,
-          backgroundColor: COLOR_BUY,
-          tension: 0.15,
-          pointRadius: 2,
-        },
-        {
-          label: "Keep doing Airbnb (net cost)",
-          data: airbnbData,
-          borderColor: COLOR_AIRBNB,
-          backgroundColor: COLOR_AIRBNB,
-          tension: 0.15,
-          pointRadius: 2,
-        },
-      ],
-    },
+    data,
     options: {
       responsive: true,
       maintainAspectRatio: false,
       interaction: { mode: "index", intersect: false },
       plugins: {
         legend: { position: "bottom" },
-        tooltip: {
-          callbacks: {
-            label(ctx) {
-              return `${ctx.dataset.label}: ${fmtUSD(ctx.parsed.y)}`;
-            },
-          },
-        },
-        breakevenLine: { year: result.breakevenYear },
+        tooltip: { callbacks: { label: (ctx) => `${ctx.dataset.label}: ${fmtUSD(ctx.parsed.y)}` } },
+        breakevenLine: { year: s.breakevenYear },
       },
       scales: {
-        x: { title: { display: true, text: "Year" }, grid: { color: COLOR_GRID } },
+        x: { title: { display: true, text: "Years from now" }, grid: { color: COLOR_GRID } },
         y: {
-          title: { display: true, text: "Cumulative net cost (lower = better)" },
+          title: { display: true, text: s.yTitle },
           grid: { color: COLOR_GRID },
           ticks: { callback: (v) => fmtUSD(v) },
         },
       },
     },
     plugins: [breakevenLinePlugin],
-  };
-
-  if (netCostChart) {
-    netCostChart.data = config.data;
-    netCostChart.options.plugins.breakevenLine.year = result.breakevenYear;
-    netCostChart.update();
-  } else {
-    netCostChart = new Chart(canvas, config);
-  }
-  return netCostChart;
+  });
+  return costChart;
 }

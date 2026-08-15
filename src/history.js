@@ -26,8 +26,18 @@ export function aggregateHistory(historyData) {
     };
   }
 
-  const checkInYears = trips.map((t) => new Date(t.checkIn).getUTCFullYear());
-  const yearsSpanned = Math.max(1, new Set(checkInYears).size);
+  // Trips/year = trips divided by the elapsed window they actually span
+  // (first check-in to last check-out), not by the count of distinct calendar
+  // years touched. Counting calendar years badly undercounts the cadence when
+  // the first and last years are only partially covered — e.g. 5 trips spread
+  // from Dec 2023 to May 2026 touch 4 calendar years (→ a misleading 1.25/yr)
+  // but really represent ~2 trips/yr across a ~2.4-year window. Floored at 1
+  // year so a tight cluster of trips can't explode the rate.
+  const sortedByCheckIn = [...trips].sort((a, b) => new Date(a.checkIn) - new Date(b.checkIn));
+  const firstCheckIn = new Date(sortedByCheckIn[0].checkIn);
+  const lastCheckOut = new Date(sortedByCheckIn[sortedByCheckIn.length - 1].checkOut);
+  const MS_PER_YEAR = 365.25 * 24 * 60 * 60 * 1000;
+  const yearsSpanned = Math.max(1, (lastCheckOut - firstCheckIn) / MS_PER_YEAR);
 
   const totalNights = trips.reduce((sum, t) => sum + t.nights, 0);
   const totalPaid = trips.reduce((sum, t) => sum + t.totalPricePaid, 0);

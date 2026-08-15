@@ -10,7 +10,7 @@ export const DEFAULT_INPUTS = {
   airbnbGrowthRate: 0.04,
 
   // B. Purchase
-  purchasePrice: 220000,
+  purchasePrice: 200000,
   financing: "mortgage", // "cash" | "mortgage"
   downPaymentPct: 0.20,
   interestRate: 0.065,

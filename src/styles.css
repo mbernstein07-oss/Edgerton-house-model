@@ -287,33 +287,82 @@ select {
 .summary-headline {
   font-size: 1.15rem;
   font-weight: 700;
-  margin-bottom: 12px;
+  margin-bottom: 14px;
+  line-height: 1.3;
 }
 .summary-headline.positive { color: var(--accent); }
 .summary-headline.negative { color: var(--warn); }
 
-.summary-grid {
+.summary-compare {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-  gap: 10px 20px;
+  grid-template-columns: 1fr auto 1fr;
+  align-items: center;
+  gap: 4px 12px;
 }
-.summary-grid > div {
-  display: flex;
-  justify-content: space-between;
-  border-top: 1px solid var(--hairline);
-  padding-top: 6px;
+.compare-col { text-align: center; }
+.compare-label {
+  font-size: 0.82rem;
+  color: var(--ink-soft);
+  margin-bottom: 2px;
 }
-.summary-grid .k { color: var(--ink-soft); }
-.summary-grid .v { font-weight: 600; font-variant-numeric: tabular-nums; }
-.summary-grid .v.positive { color: var(--accent); }
-.summary-grid .v.negative { color: var(--warn); }
+.compare-big {
+  font-size: 1.55rem;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  line-height: 1.1;
+}
+.compare-big span {
+  font-size: 0.85rem;
+  font-weight: 500;
+  color: var(--ink-soft);
+}
+.compare-sub {
+  font-size: 0.78rem;
+  color: var(--ink-faint);
+  margin-top: 3px;
+}
+.compare-vs {
+  color: var(--ink-faint);
+  font-size: 0.85rem;
+  font-style: italic;
+}
 
-.chart-panel {
+.summary-footnote {
+  margin-top: 14px;
+  padding-top: 12px;
+  border-top: 1px solid var(--hairline);
+  font-size: 0.86rem;
+  line-height: 1.45;
+}
+.summary-footnote.positive { color: var(--accent); }
+.summary-footnote.negative { color: var(--ink-soft); }
+
+.chart-block {
   background: var(--panel);
   border: 1px solid var(--hairline);
   border-radius: 8px;
-  padding: 16px 18px;
-  height: 380px;
+  padding: 14px 18px 16px;
+}
+
+.chart-toolbar {
+  display: flex;
+  justify-content: flex-end;
+  margin-bottom: 10px;
+}
+
+.chart-toggle {
+  max-width: 340px;
+  font-size: 0.85rem;
+}
+
+.chart-canvas-wrap {
+  position: relative;
+  height: 340px;
+}
+
+.chart-explainer {
+  margin: 12px 0 0;
+  line-height: 1.45;
 }
 
 .panel {
