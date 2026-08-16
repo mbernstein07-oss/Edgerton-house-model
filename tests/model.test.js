@@ -125,10 +125,9 @@ test("runModel: upfront cash equals down payment + closing + furnishing", () => 
 // --- runModel: breakeven sanity ------------------------------------------------
 
 test("runModel: cheap mortgaged house vs. very expensive frequent Airbnb trips breaks even", () => {
-  // A cash purchase ties up so much capital that its opportunity cost (money
-  // not invested) can outweigh a much pricier Airbnb habit — a mortgage with
-  // a normal down payment keeps upfront cash low enough for equity/appreciation
-  // to win out against a genuinely expensive Airbnb pattern.
+  // Against a genuinely expensive Airbnb pattern (lots of pricey trips), a cheap
+  // mortgaged house is far cheaper per year — so owning both builds equity and
+  // banks the yearly savings, and it breaks even within the horizon.
   const result = runModel({
     ...DEFAULT_INPUTS,
     financing: "mortgage",
@@ -145,24 +144,47 @@ test("runModel: cheap mortgaged house vs. very expensive frequent Airbnb trips b
   assert.ok(result.breakevenYear !== null, "expected a breakeven year");
 });
 
-test("runModel: an all-cash purchase can lose to Airbnb purely on tied-up opportunity cost", () => {
-  // Sanity check for the scenario above: the same cheap house paid in cash
-  // ties up ~4x the capital, so its invested-alternative opportunity cost
-  // keeps pace with even a lavish Airbnb habit and breakeven should be much
-  // later (or absent) versus the mortgaged version.
-  const cash = runModel({
-    ...DEFAULT_INPUTS,
-    financing: "cash",
-    purchasePrice: 120000,
-    closingCostPct: 0.02,
-    furnishingCost: 5000,
-    airbnbNightlyRate: 400,
-    airbnbTripsPerYear: 6,
-    airbnbNightsPerTrip: 7,
-    homeAppreciationRate: 0.03,
-    horizonYears: 15,
-  });
-  assert.equal(cash.breakevenYear, null, "expected the cash version not to break even in the horizon");
+test("runModel: an all-cash purchase at a modest travel level never catches up to Airbnb", () => {
+  // The full purchase price sits tied up (earning only appreciation), while the
+  // Airbnb-er invests that same capital AND the yearly housing-cost savings at
+  // the alt-investment return. At a modest personal-use level, owning can't
+  // close that opportunity-cost gap within the horizon.
+  const cash = runModel({ ...DEFAULT_INPUTS, financing: "cash", purchasePrice: 200000, horizonYears: 15 });
+  assert.equal(cash.breakevenYear, null, "expected no breakeven for an all-cash buy at a modest travel level");
+});
+
+test("runModel: opportunity cost is complete — the Airbnb side fund invests the annual housing-cost savings, not just the upfront lump", () => {
+  const result = runModel(DEFAULT_INPUTS);
+  const last = result.years[result.years.length - 1];
+  // If only the upfront lump were invested, the side fund would equal
+  // upfront * (1+r)^N. Because owning costs far more per year than this modest
+  // Airbnb habit, the Airbnb-er banks the yearly difference too, so the fund
+  // must exceed that upfront-only figure by a wide margin.
+  const upfrontOnly = result.upfrontCash * Math.pow(1 + DEFAULT_INPUTS.altInvestmentReturn, DEFAULT_INPUTS.horizonYears);
+  assert.ok(last.airbnb.sideFund > upfrontOnly * 1.5, `expected side fund (${Math.round(last.airbnb.sideFund)}) to far exceed upfront-only (${Math.round(upfrontOnly)})`);
+});
+
+test("runModel: a 0%-occupancy rental year charges no cleaning fees (no phantom turnovers)", () => {
+  const rented = runModel({ ...DEFAULT_INPUTS, usageMode: "rental", occupancyRate: 0, rentalNightsPerYear: 60, turnoverCostPerStay: 75 });
+  assert.equal(rented.years[1].buy.rentalIncomeNet, 0, "0% occupancy should net exactly 0, not a negative cleaning charge");
+});
+
+test("runModel: personal-use nights cap rental availability (you can't rent nights you occupy)", () => {
+  const base = { ...DEFAULT_INPUTS, usageMode: "rental", rentalNightsPerYear: 250, occupancyRate: 1, rentalNightlyRate: 100, propertyMgmtFeePct: 0, platformFeePct: 0, turnoverCostPerStay: 0, airbnbGrowthRate: 0, personalNightsPerYear: 0 };
+  const noPersonal = runModel(base).years[1].buy.rentalIncomeNet;
+  const heavyPersonal = runModel({ ...base, personalNightsPerYear: 200 }).years[1].buy.rentalIncomeNet;
+  // 0 personal → all 250 listed nights available; 200 personal → only 165 left,
+  // capping listed nights and therefore income.
+  assert.ok(heavyPersonal < noPersonal, `expected heavy personal use to reduce rental income (${heavyPersonal} vs ${noPersonal})`);
+  assert.ok(Math.abs(heavyPersonal - 16500) < 1, `expected 165 booked nights × $100 = 16500, got ${heavyPersonal}`);
+});
+
+test("runModel: rental turnover cost scales with booked nights, not listed nights", () => {
+  const inputs = { ...DEFAULT_INPUTS, usageMode: "rental", rentalNightsPerYear: 60, occupancyRate: 0.5, rentalNightlyRate: 175, propertyMgmtFeePct: 0.2, platformFeePct: 0.03, turnoverCostPerStay: 75 };
+  const net = runModel(inputs).years[1].buy.rentalIncomeNet;
+  // 30 booked nights → gross 5250; mgmt 1050; platform 157.5; 10 stays × $75 = 750 turnover.
+  const expected = 5250 - 1050 - 157.5 - 750;
+  assert.ok(Math.abs(net - expected) < 1, `expected ~${expected}, got ${net}`);
 });
 
 test("runModel: expensive house vs. rare cheap Airbnb trips does not break even in horizon", () => {

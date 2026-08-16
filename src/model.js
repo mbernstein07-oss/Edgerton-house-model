@@ -114,17 +114,28 @@ export function airbnbAnnualCost(inputs, yearIndex) {
 
 function rentalIncomeForYear(inputs, yearIndex) {
   if (inputs.usageMode !== "rental") {
-    return { gross: 0, mgmtFee: 0, platformFee: 0, turnoverCost: 0, net: 0, tax: 0 };
+    return { gross: 0, mgmtFee: 0, platformFee: 0, turnoverCost: 0, net: 0, tax: 0, bookedNights: 0 };
   }
   const growth = Math.pow(1 + inputs.airbnbGrowthRate, yearIndex - 1);
-  const gross = inputs.rentalNightlyRate * growth * inputs.rentalNightsPerYear * inputs.occupancyRate;
+  // rentalNightsPerYear is nights *made available* to rent; occupancy is the
+  // fraction of those that actually book. Revenue AND turnover cost both derive
+  // from the same booked-nights figure — charging cleaning on the full listed
+  // nights while only earning on booked nights (the earlier bug) meant a 0%
+  // occupancy year still billed cleaning fees for stays that never happened.
+  // Nights you occupy yourself can't also be rented, so personal use caps how
+  // many nights are actually available to list (and prevents impossible
+  // combinations that would imply more than 365 nights of use in a year).
+  const availableToRent = Math.max(0, 365 - inputs.personalNightsPerYear);
+  const listedNights = Math.min(inputs.rentalNightsPerYear, availableToRent);
+  const bookedNights = listedNights * inputs.occupancyRate;
+  const gross = inputs.rentalNightlyRate * growth * bookedNights;
   const mgmtFee = gross * inputs.propertyMgmtFeePct;
   const platformFee = gross * inputs.platformFeePct;
-  const numStays = inputs.rentalNightsPerYear / ASSUMED_RENTAL_STAY_NIGHTS;
+  const numStays = bookedNights / ASSUMED_RENTAL_STAY_NIGHTS;
   const turnoverCost = inputs.turnoverCostPerStay * numStays;
   const net = gross - mgmtFee - platformFee - turnoverCost;
   const tax = Math.max(0, net) * inputs.rentalIncomeTaxRate;
-  return { gross, mgmtFee, platformFee, turnoverCost, net, tax };
+  return { gross, mgmtFee, platformFee, turnoverCost, net, tax, bookedNights };
 }
 
 // Builds the full year-by-year series (year 0 = purchase/decision moment) and
@@ -147,6 +158,18 @@ export function runModel(inputs) {
   let cumulativeBuyOutflow = upfrontCash;
   let cumulativeAirbnbSpend = 0;
 
+  // Opportunity-cost side funds, tracked so the "net cost after resale"
+  // comparison is a complete apples-to-apples one. The Airbnb-er never ties up
+  // the upfront cash, so it starts invested for them. Then, each year, whichever
+  // path spends less cash banks the difference and invests it at the same
+  // alt-investment return. Without the annual half of this, the model credited
+  // the Airbnb path only for the down-payment lump and silently ignored that it
+  // also spends far less per year on housing — understating its lead by the
+  // (compounded) sum of those yearly savings.
+  const r = inputs.altInvestmentReturn;
+  let sideFundBuy = 0;
+  let sideFundAirbnb = upfrontCash;
+
   // Year 0 row: nothing has happened yet except the upfront cash commitment.
   years.push({
     year: 0,
@@ -156,13 +179,14 @@ export function runModel(inputs) {
       loanBalance: loanAmount,
       equityIfSold: inputs.purchasePrice * (1 - inputs.sellingCostPct) - loanAmount,
       cumulativeCashOutflow: cumulativeBuyOutflow,
+      sideFund: sideFundBuy,
       netCost: cumulativeBuyOutflow - (inputs.purchasePrice * (1 - inputs.sellingCostPct) - loanAmount),
     },
     airbnb: {
       annualCost: 0,
       cumulativeCost: 0,
-      investedBalance: upfrontCash,
-      netCost: 0 - upfrontCash,
+      sideFund: sideFundAirbnb,
+      netCost: 0 - sideFundAirbnb,
     },
   });
 
@@ -185,13 +209,20 @@ export function runModel(inputs) {
     const annualCashOutflow = ownershipCosts - rental.net + rental.tax + residualAirbnbCost - taxBenefit;
     cumulativeBuyOutflow += annualCashOutflow;
 
-    const equityIfSold = homeValueEnd * (1 - inputs.sellingCostPct) - yearAmort.endingBalance;
-    const buyNetCost = cumulativeBuyOutflow - equityIfSold;
-
     const annualAirbnb = airbnbAnnualCost(inputs, i);
     cumulativeAirbnbSpend += annualAirbnb;
-    const investedBalance = upfrontCash * Math.pow(1 + inputs.altInvestmentReturn, i);
-    const airbnbNetCost = cumulativeAirbnbSpend - investedBalance;
+
+    // Grow both side funds a year, then the cheaper-this-year path invests the
+    // difference it saved. (Only one of the two contributions is ever nonzero.)
+    sideFundBuy *= 1 + r;
+    sideFundAirbnb *= 1 + r;
+    const annualDiff = annualCashOutflow - annualAirbnb; // >0: owning cost more this year
+    if (annualDiff > 0) sideFundAirbnb += annualDiff;
+    else sideFundBuy += -annualDiff;
+
+    const equityIfSold = homeValueEnd * (1 - inputs.sellingCostPct) - yearAmort.endingBalance;
+    const buyNetCost = cumulativeBuyOutflow - (equityIfSold + sideFundBuy);
+    const airbnbNetCost = cumulativeAirbnbSpend - sideFundAirbnb;
 
     years.push({
       year: i,
@@ -213,13 +244,14 @@ export function runModel(inputs) {
         homeValue: homeValueEnd,
         loanBalance: yearAmort.endingBalance,
         equityIfSold,
+        sideFund: sideFundBuy,
         cumulativeCashOutflow: cumulativeBuyOutflow,
         netCost: buyNetCost,
       },
       airbnb: {
         annualCost: annualAirbnb,
         cumulativeCost: cumulativeAirbnbSpend,
-        investedBalance,
+        sideFund: sideFundAirbnb,
         netCost: airbnbNetCost,
       },
     });

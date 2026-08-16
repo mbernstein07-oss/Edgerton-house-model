@@ -19,6 +19,17 @@
     <div class="toolbar">
       <button id="copy-link-btn">Copy shareable link</button>
       <button id="reset-btn">Reset to defaults</button>
+      <button id="help-btn" class="help-btn">How this works</button>
+    </div>
+
+    <div id="help-overlay" class="help-overlay" hidden>
+      <div class="help-modal" role="dialog" aria-modal="true" aria-labelledby="help-modal-title">
+        <div class="help-modal-header">
+          <h2 id="help-modal-title"></h2>
+          <button id="help-close-btn" class="help-close-btn" aria-label="Close">×</button>
+        </div>
+        <div id="help-modal-body" class="help-modal-body"></div>
+      </div>
     </div>
 
     <nav class="jump-nav">

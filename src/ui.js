@@ -2,6 +2,7 @@ import { DEFAULT_INPUTS, runModel, sensitivitySweep } from "./model.js";
 import { loadHistory, aggregateHistory, historyToInputOverrides } from "./history.js";
 import { renderCostChart } from "./charts.js";
 import { listScenarios, saveScenario, deleteScenario, summarizeScenario } from "./scenarios.js";
+import { HELP_TITLE, HELP_HTML } from "./help.js";
 
 const CHART_MODES = [
   {
@@ -14,7 +15,7 @@ const CHART_MODES = [
     id: "net",
     label: "Cost after resale",
     explainer:
-      "The true economic cost: the house is credited with its resale value (appreciation + loan paydown, minus selling costs), and the Airbnb path is credited with the investment growth on the cash you didn't sink into a down payment. Where the lines cross is the breakeven year; a value below zero means that path has come out ahead.",
+      "The full economic comparison: the house is credited with its resale value (appreciation + loan paydown, minus selling costs), and the Airbnb path is credited with investment growth — not only on the cash you'd have tied up in the house, but on every dollar a year you save by not carrying it, invested at your alternative-investment return. Where the lines cross is the breakeven year; a value below zero means that path has come out ahead.",
   },
 ];
 
@@ -69,9 +70,9 @@ const FIELD_GROUPS = [
     tabLabel: "Usage",
     title: "D. Usage & offset",
     fields: [
-      { key: "personalNightsPerYear", label: "Nights/year you'd personally use the house", type: "range", min: 0, max: 120, step: 1, unit: "nights" },
       { key: "usageMode", label: "Rental usage", type: "toggle2", options: [["personal", "Personal use only"], ["rental", "Rent out when vacant"]] },
-      { key: "rentalNightsPerYear", label: "Nights/year rented", type: "range", min: 0, max: 250, step: 5, unit: "nights", showIf: (s) => s.usageMode === "rental" },
+      { key: "personalNightsPerYear", label: "Nights/year you'll use it yourself (blocked from rental)", type: "range", min: 0, max: 200, step: 1, unit: "nights", showIf: (s) => s.usageMode === "rental" },
+      { key: "rentalNightsPerYear", label: "Nights/year available to rent", type: "range", min: 0, max: 250, step: 5, unit: "nights", showIf: (s) => s.usageMode === "rental" },
       { key: "rentalNightlyRate", label: "Avg rental nightly rate", type: "range", min: 50, max: 500, step: 5, unit: "$", showIf: (s) => s.usageMode === "rental" },
       { key: "occupancyRate", label: "Occupancy assumption", type: "range", min: 0, max: 100, step: 5, unit: "%", scale: 100, showIf: (s) => s.usageMode === "rental" },
       { key: "propertyMgmtFeePct", label: "Property management fee", type: "range", min: 0, max: 30, step: 1, unit: "%", scale: 100, showIf: (s) => s.usageMode === "rental" },
@@ -347,11 +348,14 @@ function renderSensitivity(container, state, result) {
   // alt-return drives what unspent cash would otherwise earn — including
   // for an all-cash purchase, where that's often the single biggest lever).
   // Interest rate and occupancy only apply under the toggles that use them.
+  // `min` floors each swept value so a "lower" column can't stray somewhere
+  // nonsensical — but home appreciation legitimately goes negative (a house can
+  // lose value), so it floors well below zero rather than at zero like the rest.
   const levers = [
-    { key: "homeAppreciationRate", label: "Home appreciation", scale: 100, digits: 1, deltas: [-0.01, 0, 0.01] },
-    { key: "altInvestmentReturn", label: "Alternative investment return", scale: 100, digits: 1, deltas: [-0.02, 0, 0.02] },
-    ...(state.financing === "mortgage" ? [{ key: "interestRate", label: "Mortgage interest rate", scale: 100, digits: 2, deltas: [-0.005, 0, 0.005] }] : []),
-    ...(state.usageMode === "rental" ? [{ key: "occupancyRate", label: "Rental occupancy", scale: 100, digits: 0, deltas: [-0.15, 0, 0.15] }] : []),
+    { key: "homeAppreciationRate", label: "Home appreciation", scale: 100, digits: 1, deltas: [-0.01, 0, 0.01], min: -0.5 },
+    { key: "altInvestmentReturn", label: "Alternative investment return", scale: 100, digits: 1, deltas: [-0.02, 0, 0.02], min: 0 },
+    ...(state.financing === "mortgage" ? [{ key: "interestRate", label: "Mortgage interest rate", scale: 100, digits: 2, deltas: [-0.005, 0, 0.005], min: 0 }] : []),
+    ...(state.usageMode === "rental" ? [{ key: "occupancyRate", label: "Rental occupancy", scale: 100, digits: 0, deltas: [-0.15, 0, 0.15], min: 0 }] : []),
   ];
 
   if (levers.length === 0) {
@@ -364,7 +368,7 @@ function renderSensitivity(container, state, result) {
     sweep: sensitivitySweep(
       state,
       lever.key,
-      lever.deltas.map((d) => Math.max(0, state[lever.key] + d))
+      lever.deltas.map((d) => Math.max(lever.min, state[lever.key] + d))
     ),
   }));
 
@@ -586,6 +590,31 @@ export async function initApp(root) {
   const scenariosEl = root.querySelector("#scenarios-panel");
   const copyBtn = root.querySelector("#copy-link-btn");
   const resetBtn = root.querySelector("#reset-btn");
+  const helpBtn = root.querySelector("#help-btn");
+  const helpOverlay = root.querySelector("#help-overlay");
+  const helpCloseBtn = root.querySelector("#help-close-btn");
+
+  // "How this works" modal. Content is injected once; open/close just toggles
+  // the overlay, restores focus to the trigger, and closes on Esc / backdrop.
+  root.querySelector("#help-modal-title").textContent = HELP_TITLE;
+  root.querySelector("#help-modal-body").innerHTML = HELP_HTML;
+
+  function openHelp() {
+    helpOverlay.hidden = false;
+    helpCloseBtn.focus();
+  }
+  function closeHelp() {
+    helpOverlay.hidden = true;
+    if (helpBtn) helpBtn.focus();
+  }
+  if (helpBtn) helpBtn.addEventListener("click", openHelp);
+  if (helpCloseBtn) helpCloseBtn.addEventListener("click", closeHelp);
+  helpOverlay.addEventListener("click", (e) => {
+    if (e.target === helpOverlay) closeHelp(); // backdrop click only
+  });
+  document.addEventListener("keydown", (e) => {
+    if (e.key === "Escape" && !helpOverlay.hidden) closeHelp();
+  });
 
   function renderChartModeToggle() {
     chartModeToggleEl.innerHTML = "";

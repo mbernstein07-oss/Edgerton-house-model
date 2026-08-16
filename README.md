@@ -17,6 +17,7 @@ Live at: `https://mbernstein07-oss.github.io/edgerton-house-model/` once GitHub 
 - Seeds several inputs from **real historical trip data** pulled from Gmail — not just the Airbnb baseline (nightly rate, nights/trip, trips/year) but also how many nights a year you'd personally use a house (≈ how many nights you already travel to the area) and, if you rent it out, the nightly rate a comparable local place commands (≈ what you've been paying). Every seeded value stays an ordinary editable input; the trip table backing them is auditable in the "Trip history" tab. See below.
 - Inputs are organized as **tabs** (Airbnb / Purchase / Ownership / Usage / Financial) instead of one long scroll, with a dot on any tab that's been changed from its default. The summary card stays pinned at the top of the results column while you tune inputs. A small "Sensitivity, history & scenarios" jump link appears at the top on narrow screens.
 - **Save named scenarios** to come back to later or compare against each other — see below.
+- A **"How this works" button** (top toolbar) opens an in-app explainer covering the two chart views, the opportunity-cost method behind the after-resale comparison, and the key simplifications — so the numbers aren't a black box. Its content lives in `src/help.js`.
 
 ## Saving scenarios
 
@@ -37,6 +38,7 @@ data/airbnb-history.json   historical Airbnb trips (see "Historical data" below)
 src/model.js             pure calculation functions — no DOM, unit-testable
 src/history.js           loads + aggregates airbnb-history.json into defaults
 src/scenarios.js         localStorage-backed named-scenario save/load/delete
+src/help.js              "How this works" content shown in the in-app modal
 src/ui.js                renders the input form, wires events, syncs the URL
 src/charts.js            Chart.js line-chart rendering
 src/styles.css           theme-aware (light/dark) styling
@@ -125,6 +127,7 @@ Kept intentionally out of scope, per the project brief:
 
 A couple of modeling choices worth knowing about if you're extending `model.js`:
 
-- **"Net cost" = cumulative cash outflow − recoverable value.** For Buy, recoverable value is home equity if sold at that point (appreciated value minus selling costs minus remaining loan balance). For Airbnb, it's the invested balance of the cash you *didn't* spend buying a house (down payment + closing + furnishing), compounding at your assumed alternative-investment return. Breakeven is where the two lines cross.
-- **Rental turnover cost** assumes an average 3-night rented stay (to convert "nights rented per year" into "number of turnovers per year" for the per-stay cleaning cost). Not exposed as an input — see `ASSUMED_RENTAL_STAY_NIGHTS` in `model.js` if that assumption needs to change.
-- **A cash purchase can lose to Airbnb purely on opportunity cost.** Paying 100% cash ties up far more capital than a mortgage's down payment does; if that capital would otherwise be invested at a healthy return, its growth can outpace even an expensive Airbnb habit. This is intentional (see the two `runModel` tests in `tests/model.test.js` that pin this down) — it's a legitimate reason cash and mortgage scenarios can reach different conclusions for the same house.
+- **"Net cost after resale" = cumulative cash outflow − recoverable value**, and the recoverable value is a complete "invest the difference" opportunity-cost model, not just the down-payment lump. For Buy, recoverable value is home equity if sold (appreciated value − selling costs − remaining loan) plus a side fund of any years where owning cost *less* than Airbnb-ing, invested at the alternative return. For Airbnb, it's a side fund seeded with the upfront cash the buyer would tie up (down payment + closing + furnishing) *and* fed each year with the difference between what owning would have cost and what the trips cost — every dollar the Airbnb-er saves by not carrying a house, compounding at the alternative-investment return. Breakeven is where the two net-cost lines cross. (An earlier version credited only the upfront lump and ignored the annual savings, which understated the Airbnb path's lead by the compounded value of those savings — often roughly halving the true gap. See the `sideFund` tracking in `runModel` and the opportunity-cost test in `tests/model.test.js`.)
+- **The "Cash out of pocket" view is untouched by any of that** — it's pure nominal cash leaving your account each year, no investment returns, no resale credit. That's the default view and the summary card's headline numbers.
+- **Rental income** uses booked nights = listed nights × occupancy for *both* revenue and turnover-cleaning cost, so a low-occupancy year doesn't get charged cleaning for stays that never happened. Turnover assumes an average 3-night stay (`ASSUMED_RENTAL_STAY_NIGHTS`) to convert booked nights into number of stays.
+- **A cash purchase can lose to Airbnb purely on opportunity cost.** Paying 100% cash ties up far more capital than a mortgage's down payment does; invested at a healthy alternative return, that foregone growth is a real cost of buying. At a modest travel level the tied-up-capital opportunity cost means an all-cash buy never catches up — see the `runModel` tests in `tests/model.test.js`.
