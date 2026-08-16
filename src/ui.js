@@ -3,6 +3,7 @@ import { loadHistory, aggregateHistory, historyToInputOverrides } from "./histor
 import { renderCostChart } from "./charts.js";
 import { listScenarios, saveScenario, deleteScenario, summarizeScenario } from "./scenarios.js";
 import { HELP_TITLE, HELP_HTML } from "./help.js";
+import { analyzeScenario } from "./insights.js";
 
 const CHART_MODES = [
   {
@@ -593,6 +594,31 @@ export async function initApp(root) {
   const helpBtn = root.querySelector("#help-btn");
   const helpOverlay = root.querySelector("#help-overlay");
   const helpCloseBtn = root.querySelector("#help-close-btn");
+  const insightsBtn = root.querySelector("#insights-btn");
+  const insightsEl = root.querySelector("#insights");
+  const insightsTakeawayEl = root.querySelector("#insights-takeaway");
+  const insightsListEl = root.querySelector("#insights-list");
+
+  // On-demand "smart" analysis. It's cheap to compute, but kept behind a button
+  // so the prose doesn't churn on every slider drag; once shown, it marks itself
+  // stale (rather than silently updating) when inputs change, so what you read
+  // always matches what you clicked.
+  let insightsSig = null;
+  const stateSig = () => JSON.stringify(state);
+
+  function generateInsights() {
+    const { takeaway, points } = analyzeScenario(state);
+    insightsTakeawayEl.textContent = takeaway;
+    insightsListEl.innerHTML = points.map((p) => `<li>${escapeHtml(p)}</li>`).join("");
+    insightsEl.hidden = false;
+    insightsEl.classList.remove("stale");
+    insightsSig = stateSig();
+    insightsBtn.textContent = "Update analysis";
+  }
+  function markInsightsStaleIfNeeded() {
+    if (!insightsEl.hidden && insightsSig !== stateSig()) insightsEl.classList.add("stale");
+  }
+  insightsBtn.addEventListener("click", generateInsights);
 
   // "How this works" modal. Content is injected once; open/close just toggles
   // the overlay, restores focus to the trigger, and closes on Esc / backdrop.
@@ -732,6 +758,7 @@ export async function initApp(root) {
     renderCostChart(chartCanvas, result, chartMode);
     renderSensitivity(sensitivityEl, state, result);
     updateUrl(state);
+    markInsightsStaleIfNeeded();
   }
 
   // rerender=true (default): structural change (toggle/select/tab) — rebuild the

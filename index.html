@@ -48,6 +48,15 @@
       <div class="results">
         <div id="summary"></div>
 
+        <div class="insights-wrap">
+          <button id="insights-btn" class="insights-btn">Explain this scenario</button>
+          <div id="insights" class="insights-panel" hidden>
+            <div class="insights-stale-note">Inputs have changed since this was written — click <strong>Update analysis</strong> to refresh it.</div>
+            <p class="insights-takeaway" id="insights-takeaway"></p>
+            <ul class="insights-list" id="insights-list"></ul>
+          </div>
+        </div>
+
         <div class="chart-block" id="chart-panel">
           <div class="chart-toolbar">
             <div class="chart-toggle toggle2" id="chart-mode-toggle"></div>

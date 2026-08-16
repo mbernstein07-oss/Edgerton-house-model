@@ -4,7 +4,7 @@
   "type": "module",
   "description": "Buy vs. Airbnb decision calculator for Edgerton, OH. Static site, no build step.",
   "scripts": {
-    "test": "node tests/model.test.js && node tests/scenarios.test.js",
+    "test": "node tests/model.test.js && node tests/scenarios.test.js && node tests/insights.test.js",
     "serve": "python3 -m http.server 8080"
   }
 }

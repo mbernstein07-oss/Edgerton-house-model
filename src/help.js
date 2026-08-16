@@ -25,6 +25,9 @@ export const HELP_HTML = `
   <h3>The summary card (top right)</h3>
   <p>It leads with the headline verdict, then the head-to-head: average cash per year on each path (averaged across the whole time horizon, so changing the growth rate or horizon actually moves it), the one-time upfront cash to buy, and the totals over the horizon. The italic line underneath is the after-resale bottom line — how far ahead or behind owning ends up once resale value and investment growth are counted.</p>
 
+  <h3>"Explain this scenario"</h3>
+  <p>The button under the summary writes a short, plain-language read on <em>your</em> current inputs — what's driving the verdict (often the per-night cost of a place you'd use lightly, or the opportunity cost of the tied-up cash), and what would actually change it. It's generated from the same math the charts use, so it's always consistent with them; it just puts the "why" into words. It sits behind a button so it doesn't rewrite itself while you're dragging sliders — after you change something it dims and asks you to click <strong>Update analysis</strong>, so what you're reading always matches what you clicked.</p>
+
   <h3>The Sensitivity table</h3>
   <p>Shows how the outcome shifts if a key assumption comes in higher or lower than you set it — home appreciation, your alternative investment return, the mortgage rate, and (if you rent it out) occupancy. The shaded middle column is your current setting. Each cell shows either the breakeven year or, if it doesn't break even, how many dollars behind it ends — so you can see which direction and how much each lever actually moves things. If nothing in the table reaches breakeven, the biggest levers are elsewhere: purchase price, cash vs. mortgage, and whether you rent it out.</p>
 
