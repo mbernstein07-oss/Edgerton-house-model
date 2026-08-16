@@ -16,7 +16,7 @@ Live at: `https://mbernstein07-oss.github.io/edgerton-house-model/` once GitHub 
 - The **sensitivity table** shows how the year-N outcome shifts if appreciation, alternative-investment return, mortgage rate, or (when renting) occupancy come in higher or lower than assumed — and unlike a plain "does it break even? yes/no" table, every cell states the actual dollar gap (or the breakeven year, highlighted, when one is reached), so a scenario that's nowhere near breaking even still shows *which direction and how much* each lever moves it, instead of a wall of identical "never"s. When nothing in the table gets a scenario to breakeven, a note says so explicitly and points at the bigger levers (price, financing, renting it out) instead of leaving that to be inferred.
 - Seeds several inputs from **real historical trip data** pulled from Gmail — not just the Airbnb baseline (nightly rate, nights/trip, trips/year) but also how many nights a year you'd personally use a house (≈ how many nights you already travel to the area) and, if you rent it out, the nightly rate a comparable local place commands (≈ what you've been paying). Every seeded value stays an ordinary editable input; the trip table backing them is auditable in the "Trip history" tab. See below.
 - Inputs are organized as **tabs** (Airbnb / Purchase / Ownership / Usage / Financial) instead of one long scroll, with a dot on any tab that's been changed from its default. The summary card stays pinned at the top of the results column while you tune inputs. A small "Sensitivity, history & scenarios" jump link appears at the top on narrow screens.
-- An **"Explain this scenario" button** (under the summary) writes a short, plain-language analysis tailored to the current inputs — what's driving the verdict (e.g. the per-night cost of a lightly-used house, or the opportunity cost of tied-up cash) and what would flip it. It's a deterministic rules engine in `src/insights.js` (no live AI / network — works inside a shared static link and can't disagree with the numbers), kept behind a button so it doesn't churn while you drag sliders; it marks itself stale when inputs change rather than silently updating.
+- An itemized **"Where every dollar goes" breakdown** (under the summary) decomposes each path into its component totals over the horizon — two receipts that each subtotal to "cash out of pocket" and then "net cost after resale", the exact figures the chart plots. Rather than assert *why* the verdict lands where it does, it lets the magnitudes show it. `costBreakdown()` in `src/model.js` builds the line items, and a test asserts they sum precisely to the model's totals, so the receipt can never drift from the chart.
 - **Save named scenarios** to come back to later or compare against each other — see below.
 - A **"How this works" button** (top toolbar) opens an in-app explainer covering the two chart views, the opportunity-cost method behind the after-resale comparison, and the key simplifications — so the numbers aren't a black box. Its content lives in `src/help.js`.
 
@@ -40,14 +40,12 @@ src/model.js             pure calculation functions — no DOM, unit-testable
 src/history.js           loads + aggregates airbnb-history.json into defaults
 src/scenarios.js         localStorage-backed named-scenario save/load/delete
 src/help.js              "How this works" content shown in the in-app modal
-src/insights.js          rules-based "Explain this scenario" analysis generator
 src/ui.js                renders the input form, wires events, syncs the URL
 src/charts.js            Chart.js line-chart rendering
 src/styles.css           theme-aware (light/dark) styling
 vendor/chart.umd.min.js  Chart.js, vendored so the page has no CDN dependency
-tests/model.test.js      plain-Node sanity checks on the math
+tests/model.test.js      plain-Node sanity checks on the math (incl. breakdown reconciliation)
 tests/scenarios.test.js  plain-Node sanity checks on scenario storage
-tests/insights.test.js   plain-Node sanity checks on the analysis generator
 ```
 
 `model.js` never touches the DOM — it's a set of pure functions in, plain objects out — so the math can be tested and reused independently of the UI (and reasoned about without opening a browser).

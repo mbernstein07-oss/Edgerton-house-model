@@ -1,9 +1,8 @@
-import { DEFAULT_INPUTS, runModel, sensitivitySweep } from "./model.js";
+import { DEFAULT_INPUTS, runModel, sensitivitySweep, costBreakdown } from "./model.js";
 import { loadHistory, aggregateHistory, historyToInputOverrides } from "./history.js";
 import { renderCostChart } from "./charts.js";
 import { listScenarios, saveScenario, deleteScenario, summarizeScenario } from "./scenarios.js";
 import { HELP_TITLE, HELP_HTML } from "./help.js";
-import { analyzeScenario } from "./insights.js";
 
 const CHART_MODES = [
   {
@@ -340,6 +339,62 @@ function renderSummary(container, result) {
   `;
 }
 
+// Signed dollar amount for the breakdown: costs plain, credits (money back /
+// avoided, stored negative) shown as "− $X" and coloured as a credit.
+function fmtSigned(n) {
+  if (n < 0) return `<span class="bd-credit">−${fmtUSD(Math.abs(n))}</span>`;
+  return fmtUSD(n);
+}
+
+function breakdownRows(items) {
+  return items
+    .map((i) => `<tr><td class="bd-label">${i.label}</td><td class="bd-amt">${fmtSigned(i.amount)}</td></tr>`)
+    .join("");
+}
+
+function renderBreakdown(container, result) {
+  const bd = costBreakdown(result);
+  const N = bd.horizon;
+  const buyAhead = bd.gap <= 0;
+
+  // Whichever path has the lower net cost is the cheaper one; state it plainly.
+  const verdictLine = buyAhead
+    ? `Owning comes out <strong>${fmtUSD(Math.abs(bd.gap))} cheaper</strong> than Airbnb-ing over ${N} years, all in.`
+    : `Airbnb-ing comes out <strong>${fmtUSD(Math.abs(bd.gap))} cheaper</strong> than owning over ${N} years, all in.`;
+
+  container.innerHTML = `
+    <p class="bd-intro muted">Every line below is a real total over the ${N}-year horizon and moves with your inputs. Costs are money out; <span class="bd-credit">green</span> is money back or growth you'd keep. The two "net cost after resale" totals are exactly what the chart's after-resale view plots.</p>
+
+    <div class="bd-grid">
+      <div class="bd-col">
+        <h3 class="bd-title">Own the house</h3>
+        <table class="bd-table">
+          <tbody>
+            ${breakdownRows(bd.buy.cash)}
+            <tr class="bd-subtotal"><td>Cash out of pocket</td><td class="bd-amt">${fmtUSD(bd.buy.cashTotal)}</td></tr>
+            ${breakdownRows(bd.buy.after)}
+            <tr class="bd-total"><td>Net cost after resale</td><td class="bd-amt">${fmtUSD(bd.buy.netTotal)}</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="bd-col">
+        <h3 class="bd-title">Keep Airbnb-ing</h3>
+        <table class="bd-table">
+          <tbody>
+            ${breakdownRows(bd.airbnb.cash)}
+            <tr class="bd-subtotal"><td>Cash out of pocket</td><td class="bd-amt">${fmtUSD(bd.airbnb.cashTotal)}</td></tr>
+            ${breakdownRows(bd.airbnb.after)}
+            <tr class="bd-total"><td>Net cost after resale</td><td class="bd-amt">${fmtUSD(bd.airbnb.netTotal)}</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <p class="bd-verdict ${buyAhead ? "positive" : "negative"}">${verdictLine}</p>
+  `;
+}
+
 function renderSensitivity(container, state, result) {
   const horizon = state.horizonYears;
   const currentGap = result.summary.buyMinusAirbnbAtHorizon;
@@ -591,34 +646,10 @@ export async function initApp(root) {
   const scenariosEl = root.querySelector("#scenarios-panel");
   const copyBtn = root.querySelector("#copy-link-btn");
   const resetBtn = root.querySelector("#reset-btn");
+  const breakdownEl = root.querySelector("#breakdown-body");
   const helpBtn = root.querySelector("#help-btn");
   const helpOverlay = root.querySelector("#help-overlay");
   const helpCloseBtn = root.querySelector("#help-close-btn");
-  const insightsBtn = root.querySelector("#insights-btn");
-  const insightsEl = root.querySelector("#insights");
-  const insightsTakeawayEl = root.querySelector("#insights-takeaway");
-  const insightsListEl = root.querySelector("#insights-list");
-
-  // On-demand "smart" analysis. It's cheap to compute, but kept behind a button
-  // so the prose doesn't churn on every slider drag; once shown, it marks itself
-  // stale (rather than silently updating) when inputs change, so what you read
-  // always matches what you clicked.
-  let insightsSig = null;
-  const stateSig = () => JSON.stringify(state);
-
-  function generateInsights() {
-    const { takeaway, points } = analyzeScenario(state);
-    insightsTakeawayEl.textContent = takeaway;
-    insightsListEl.innerHTML = points.map((p) => `<li>${escapeHtml(p)}</li>`).join("");
-    insightsEl.hidden = false;
-    insightsEl.classList.remove("stale");
-    insightsSig = stateSig();
-    insightsBtn.textContent = "Update analysis";
-  }
-  function markInsightsStaleIfNeeded() {
-    if (!insightsEl.hidden && insightsSig !== stateSig()) insightsEl.classList.add("stale");
-  }
-  insightsBtn.addEventListener("click", generateInsights);
 
   // "How this works" modal. Content is injected once; open/close just toggles
   // the overlay, restores focus to the trigger, and closes on Esc / backdrop.
@@ -755,10 +786,10 @@ export async function initApp(root) {
   function recompute() {
     const result = runModel(state);
     renderSummary(summaryEl, result);
+    renderBreakdown(breakdownEl, result);
     renderCostChart(chartCanvas, result, chartMode);
     renderSensitivity(sensitivityEl, state, result);
     updateUrl(state);
-    markInsightsStaleIfNeeded();
   }
 
   // rerender=true (default): structural change (toggle/select/tab) — rebuild the

@@ -48,14 +48,10 @@
       <div class="results">
         <div id="summary"></div>
 
-        <div class="insights-wrap">
-          <button id="insights-btn" class="insights-btn">Explain this scenario</button>
-          <div id="insights" class="insights-panel" hidden>
-            <div class="insights-stale-note">Inputs have changed since this was written — click <strong>Update analysis</strong> to refresh it.</div>
-            <p class="insights-takeaway" id="insights-takeaway"></p>
-            <ul class="insights-list" id="insights-list"></ul>
-          </div>
-        </div>
+        <details class="breakdown" id="breakdown" open>
+          <summary class="breakdown-summary">Where every dollar goes <span class="breakdown-hint">— the full breakdown</span></summary>
+          <div id="breakdown-body"></div>
+        </details>
 
         <div class="chart-block" id="chart-panel">
           <div class="chart-toolbar">

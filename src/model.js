@@ -285,6 +285,56 @@ export function runModel(inputs) {
   };
 }
 
+// Itemized breakdown of how each path's horizon totals are built, so the
+// headline number decomposes into pieces that each tie back to an input.
+// Takes a computed runModel() result (no re-run). Costs are positive, credits
+// (money back / avoided) are negative; the line items sum exactly to the same
+// cash-out and net-cost totals the charts plot (asserted in the tests), so the
+// receipt can never silently drift from the model.
+export function costBreakdown(result) {
+  const { inputs } = result;
+  const N = inputs.horizonYears;
+  const last = result.years[N];
+  const yrs = result.years.slice(1); // years 1..N
+  const sum = (f) => yrs.reduce((acc, y) => acc + f(y), 0);
+  const isCash = inputs.financing === "cash";
+
+  const buyCash = [];
+  buyCash.push({ label: isCash ? "Purchase price (paid in cash)" : "Down payment", amount: result.downPaymentAmount });
+  buyCash.push({ label: "Closing costs", amount: result.closingCosts });
+  if (inputs.furnishingCost > 0) buyCash.push({ label: "Furnishing & setup", amount: inputs.furnishingCost });
+  const mortgage = sum((y) => y.buy.mortgagePayment);
+  if (mortgage > 0) buyCash.push({ label: "Mortgage payments (principal + interest)", amount: mortgage });
+  buyCash.push({ label: "Property tax", amount: sum((y) => y.buy.propertyTax) });
+  buyCash.push({ label: "Insurance", amount: sum((y) => y.buy.insurance) });
+  if (inputs.hoaAnnual > 0) buyCash.push({ label: "HOA", amount: sum((y) => y.buy.hoa) });
+  buyCash.push({ label: "Maintenance & repairs", amount: sum((y) => y.buy.maintenance) });
+  buyCash.push({ label: "Utilities", amount: sum((y) => y.buy.utilities) });
+  const pmi = sum((y) => y.buy.pmiPaid);
+  if (pmi > 0) buyCash.push({ label: "PMI", amount: pmi });
+  const rentalTax = sum((y) => y.buy.rentalIncomeTax);
+  if (rentalTax > 0) buyCash.push({ label: "Tax on rental income", amount: rentalTax });
+  const residual = sum((y) => y.buy.residualAirbnbCost);
+  if (residual > 0) buyCash.push({ label: "Airbnb trips owning doesn't replace", amount: residual });
+  const rentalNet = sum((y) => y.buy.rentalIncomeNet);
+  if (rentalNet !== 0) buyCash.push({ label: "Rental income (net of fees & cleaning)", amount: -rentalNet });
+  const taxBenefit = sum((y) => y.buy.taxBenefit);
+  if (taxBenefit > 0) buyCash.push({ label: "Tax deductions", amount: -taxBenefit });
+
+  const buyAfter = [{ label: "Home sale proceeds (after selling costs & loan payoff)", amount: -last.buy.equityIfSold }];
+  if (last.buy.sideFund > 1) buyAfter.push({ label: "Investment growth in years owning cost less", amount: -last.buy.sideFund });
+
+  const airbnbCash = [{ label: `Airbnb trip spending over ${N} years`, amount: last.airbnb.cumulativeCost }];
+  const airbnbAfter = [{ label: "Investment growth on the cash you didn't tie up in a house", amount: -last.airbnb.sideFund }];
+
+  return {
+    horizon: N,
+    buy: { cash: buyCash, cashTotal: last.buy.cumulativeCashOutflow, after: buyAfter, netTotal: last.buy.netCost },
+    airbnb: { cash: airbnbCash, cashTotal: last.airbnb.cumulativeCost, after: airbnbAfter, netTotal: last.airbnb.netCost },
+    gap: result.summary.buyMinusAirbnbAtHorizon,
+  };
+}
+
 // Runs the model across a small grid of values for one lever, holding
 // everything else fixed, and reports the resulting breakeven year for each —
 // plus the net-cost gap at the horizon (buy minus Airbnb; negative = buying

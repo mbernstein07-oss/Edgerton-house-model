@@ -9,6 +9,7 @@ import {
   airbnbAnnualCost,
   runModel,
   sensitivitySweep,
+  costBreakdown,
 } from "../src/model.js";
 
 let passed = 0;
@@ -211,6 +212,32 @@ test("runModel: rental income reduces buy-path net cost vs. personal-use-only, a
   const last = (r) => r.years[r.years.length - 1].buy.netCost;
   assert.ok(last(resultRented) < last(resultBase), "renting when vacant should lower net cost");
 });
+
+// --- costBreakdown: line items must reconcile to the model's totals ------------
+
+function checkBreakdownReconciles(label, inputs) {
+  test(`costBreakdown reconciles to model totals — ${label}`, () => {
+    const result = runModel(inputs);
+    const bd = costBreakdown(result);
+    const sumAmts = (arr) => arr.reduce((a, x) => a + x.amount, 0);
+
+    // Cash line items sum to the cash-out total the "Cash out of pocket" chart plots.
+    assert.ok(Math.abs(sumAmts(bd.buy.cash) - bd.buy.cashTotal) < 0.01, `buy cash items ${sumAmts(bd.buy.cash)} != ${bd.buy.cashTotal}`);
+    assert.ok(Math.abs(sumAmts(bd.airbnb.cash) - bd.airbnb.cashTotal) < 0.01, `airbnb cash items != total`);
+
+    // Cash + after-resale items sum to the net-cost total the "Cost after resale" chart plots.
+    assert.ok(Math.abs(sumAmts(bd.buy.cash) + sumAmts(bd.buy.after) - bd.buy.netTotal) < 0.01, "buy net doesn't reconcile");
+    assert.ok(Math.abs(sumAmts(bd.airbnb.cash) + sumAmts(bd.airbnb.after) - bd.airbnb.netTotal) < 0.01, "airbnb net doesn't reconcile");
+
+    // The reported gap equals the difference of the two net totals.
+    assert.ok(Math.abs(bd.gap - (bd.buy.netTotal - bd.airbnb.netTotal)) < 0.01, "gap doesn't match net difference");
+  });
+}
+
+checkBreakdownReconciles("default (mortgage, personal)", DEFAULT_INPUTS);
+checkBreakdownReconciles("cash purchase", { ...DEFAULT_INPUTS, financing: "cash" });
+checkBreakdownReconciles("low-down mortgage with PMI", { ...DEFAULT_INPUTS, downPaymentPct: 0.05, itemizeDeductions: true });
+checkBreakdownReconciles("rental, partial replacement, HOA", { ...DEFAULT_INPUTS, usageMode: "rental", tripsReplacedPct: 0.6, hoaAnnual: 600, occupancyRate: 0.6 });
 
 // --- sensitivitySweep ----------------------------------------------------------
 
