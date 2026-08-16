@@ -14,7 +14,7 @@ Live at: `https://mbernstein07-oss.github.io/edgerton-house-model/` once GitHub 
   - **Cost after resale** — the true economic comparison: the house is credited with its resale value (appreciation + loan paydown − selling costs), and the Airbnb path is credited with investment growth on the cash you *didn't* sink into a down payment. Where the two lines cross is the **breakeven year**; a value below zero means that path is ahead overall.
 - The **summary card** leads with the head-to-head annual numbers (`$X/yr on Airbnb` vs `$Y/yr to own`, plus upfront cash and 10-year totals) and a one-line plain-English verdict, so the bottom line is legible without reading the chart.
 - Shows a small **sensitivity table**: how the breakeven year shifts if appreciation, mortgage rate, or (when renting) occupancy comes in higher or lower than assumed.
-- Seeds the Airbnb-baseline inputs (nightly rate, nights/trip, trips/year) from **real historical trip data** pulled from Gmail, with an auditable table of the underlying trips — see below.
+- Seeds several inputs from **real historical trip data** pulled from Gmail — not just the Airbnb baseline (nightly rate, nights/trip, trips/year) but also how many nights a year you'd personally use a house (≈ how many nights you already travel to the area) and, if you rent it out, the nightly rate a comparable local place commands (≈ what you've been paying). Every seeded value stays an ordinary editable input; the trip table backing them is auditable in the "Trip history" tab. See below.
 - Inputs are organized as **tabs** (Airbnb / Purchase / Ownership / Usage / Financial) instead of one long scroll, with a dot on any tab that's been changed from its default. The summary card stays pinned at the top of the results column while you tune inputs. A small "Sensitivity & history" jump link appears at the top on narrow screens.
 
 ## Project layout
@@ -69,7 +69,17 @@ A few defaults are **overridden at load time** by real data instead of being har
 
 **Confirmation logic:** a trip only counts as "used" (and feeds the defaults) if both a booking confirmation email *and* a matching post-stay review email (the "leave a review" prompt Airbnb sends a day or two after checkout, and/or the host's review of the guest) were found for the same reservation. A booking confirmation with an explicit cancellation email, or with no matching review email, is filed under `unconfirmedTrips` in the JSON instead — logged, but excluded from the averages.
 
-As of the last refresh (2026-08-15), there are **5 confirmed trips** in the dataset, all within about an hour's drive of Edgerton: Avilla, IN (Dec 2023); Auburn, IN (Sep 2024); Fort Wayne, IN (Sep 2024); Hicksville, OH (Nov 2025); and Bryan, OH (May 2026) — plus 3 more bookings in the same area that were cancelled before check-in (also logged, for a complete picture, but excluded from the averages). With 5 confirmed trips, `history.js` overrides nightly rate, nights/trip, *and* trips/year from real data (trips/year is gated at 3+ confirmed trips — see `historyToInputOverrides` in `src/history.js` — since one or two trips don't establish a cadence).
+As of the last refresh (2026-08-15), there are **5 confirmed trips** in the dataset, all within about an hour's drive of Edgerton: Avilla, IN (Dec 2023); Auburn, IN (Sep 2024); Fort Wayne, IN (Sep 2024); Hicksville, OH (Nov 2025); and Bryan, OH (May 2026) — plus 3 more bookings in the same area that were cancelled before check-in (also logged, for a complete picture, but excluded from the averages). With 5 confirmed trips, `history.js` (`historyToInputOverrides`) seeds five inputs from the real data:
+
+| Input | Seeded from | Value |
+|---|---|---|
+| Airbnb avg nightly rate | total paid ÷ total nights | ~$175 |
+| Airbnb nights per trip | avg over the trips | 8 |
+| Airbnb trips per year | trips ÷ elapsed window (see below) | 2 |
+| Personal nights/year you'd use a house | trips/yr × nights/trip (≈ how much you already travel there) | 16 |
+| Rental nightly rate (if renting it out) | the same local comps you've been paying | ~$175 |
+
+The two cadence-dependent ones (trips/year, personal nights/year) are gated at 3+ confirmed trips, since one or two trips don't establish a pattern. Seeded values are rounded to each slider's step so the thumb lands exactly on the value. These are *starting points*, not locks — every one is an ordinary editable slider, and the "adjusted" dot on a tab compares against these history-informed defaults (not the raw code defaults), so a dot always means "you changed this from the starting scenario."
 
 **How trips/year is measured:** it's the trip count divided by the *elapsed window* the trips actually span (first check-in to last check-out), not by the number of distinct calendar years they touch. Counting calendar years badly undercounts the cadence when the first and last years are only partially covered — these 5 trips run Dec 2023 → May 2026 and touch 4 calendar years, which would read as a misleading 1.25 trips/yr, when the real pace across that ~2.4-year window is ~2.1/yr. The elapsed-window figure (~2.1/yr, ~$2,900/yr of Airbnb spend at the current nightly-rate default) is what feeds the model.
 

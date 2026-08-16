@@ -61,24 +61,36 @@ export function aggregateHistory(historyData) {
 }
 
 // Maps aggregated history onto the subset of DEFAULT_INPUTS keys it can inform.
-// Returns null fields as undefined so callers can skip overriding when there's
-// not enough data to trust (e.g. a single trip shouldn't dictate trips/year).
+// Values are rounded to each field's slider step so the slider thumb lands
+// exactly on the value (otherwise a value like 175.6 on a step-5 slider snaps
+// the thumb to 175 while state stays 175.6 — a phantom "adjusted" state).
 export function historyToInputOverrides(aggregate) {
   if (!aggregate || aggregate.tripCount === 0) return {};
+
+  const nightly = round5(aggregate.avgNightlyRate);
   const overrides = {
-    airbnbNightlyRate: round2(aggregate.avgNightlyRate),
-    airbnbNightsPerTrip: round1(aggregate.avgNightsPerTrip),
+    airbnbNightlyRate: nightly,
+    airbnbNightsPerTrip: Math.round(aggregate.avgNightsPerTrip),
+    // What you've actually paid for comparable stays in the area is the best
+    // available comp for what a place you owned could rent for, so seed the
+    // rent-it-out nightly rate from the same history.
+    rentalNightlyRate: nightly,
   };
   if (aggregate.avgCleaningFee > 0) overrides.airbnbCleaningFee = round2(aggregate.avgCleaningFee);
-  // Trips/year from a single confirmed trip is too thin a sample to override
-  // the default cadence assumption; only apply it once there's a real trend.
-  if (aggregate.tripCount >= 3) overrides.airbnbTripsPerYear = round1(aggregate.avgTripsPerYear);
+
+  // Cadence-derived inputs need more than one or two trips to be meaningful.
+  if (aggregate.tripCount >= 3) {
+    overrides.airbnbTripsPerYear = Math.round(aggregate.avgTripsPerYear);
+    // Nights/year you'd personally use the house ≈ nights/year you already
+    // spend in the area (trips per year × nights per trip).
+    overrides.personalNightsPerYear = Math.round(aggregate.avgTripsPerYear * aggregate.avgNightsPerTrip);
+  }
   return overrides;
 }
 
 function round2(n) {
   return Math.round(n * 100) / 100;
 }
-function round1(n) {
-  return Math.round(n * 10) / 10;
+function round5(n) {
+  return Math.round(n / 5) * 5;
 }

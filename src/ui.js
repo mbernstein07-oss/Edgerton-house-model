@@ -173,7 +173,9 @@ function renderField(field, state, onChange) {
 
     const commit = (displayVal) => {
       const raw = displayVal / scale;
-      onChange(field.key, raw);
+      // rerender:false — a slider drag / number-field keystroke must NOT rebuild
+      // the form, or the element being interacted with gets destroyed mid-drag.
+      onChange(field.key, raw, false);
       valueOut.textContent = displayValue(field, raw);
     };
     slider.addEventListener("input", () => {
@@ -236,8 +238,8 @@ function round(n, step) {
   return Number(n.toFixed(decimals));
 }
 
-function groupHasCustomValue(group, state) {
-  return group.fields.some((f) => state[f.key] !== DEFAULT_INPUTS[f.key]);
+function groupHasCustomValue(group, state, baseline) {
+  return group.fields.some((f) => state[f.key] !== baseline[f.key]);
 }
 
 function renderTabBar(container, tabs, activeId, onSelect) {
@@ -255,17 +257,8 @@ function renderTabBar(container, tabs, activeId, onSelect) {
   }
 }
 
-function renderForm(container, tabBarEl, state, activeGroupId, onChange, onTabSelect) {
-  renderTabBar(
-    tabBarEl,
-    FIELD_GROUPS.map((g) => ({ id: g.id, label: g.tabLabel, badge: g.badge, dirty: groupHasCustomValue(g, state) })),
-    activeGroupId,
-    onTabSelect
-  );
-
+function renderInputFields(container, group, state, onChange) {
   container.innerHTML = "";
-  const group = FIELD_GROUPS.find((g) => g.id === activeGroupId) || FIELD_GROUPS[0];
-
   const heading = document.createElement("h2");
   heading.className = "input-group-title";
   heading.textContent = group.title;
@@ -426,11 +419,37 @@ export async function initApp(root) {
     chartExplainerEl.textContent = active ? active.explainer : "";
   }
 
+  const effectiveDefaults = { ...DEFAULT_INPUTS, ...historyOverrides };
+  let lastDirtySig = null;
+
+  function renderInputTabBar() {
+    lastDirtySig = FIELD_GROUPS.map((g) => (groupHasCustomValue(g, state, effectiveDefaults) ? "1" : "0")).join("");
+    renderTabBar(
+      inputTabBarEl,
+      FIELD_GROUPS.map((g) => ({ id: g.id, label: g.tabLabel, badge: g.badge, dirty: groupHasCustomValue(g, state, effectiveDefaults) })),
+      activeInputTab,
+      (tabId) => {
+        activeInputTab = tabId;
+        renderInputs();
+      }
+    );
+  }
+
+  // Refresh only the tab bar's "adjusted" dots, and only when they actually
+  // change. Called on plain value tweaks so we never touch the live field
+  // element mid-interaction (that was the drag/typing bug).
+  function refreshTabDots() {
+    const sig = FIELD_GROUPS.map((g) => (groupHasCustomValue(g, state, effectiveDefaults) ? "1" : "0")).join("");
+    if (sig !== lastDirtySig) renderInputTabBar();
+  }
+
+  // Full rebuild: used on tab switches and structural changes (toggles that
+  // show/hide fields via showIf). Safe because those come from single clicks,
+  // never a continuous drag.
   function renderInputs() {
-    renderForm(formEl, inputTabBarEl, state, activeInputTab, onChange, (tabId) => {
-      activeInputTab = tabId;
-      renderInputs();
-    });
+    renderInputTabBar();
+    const group = FIELD_GROUPS.find((g) => g.id === activeInputTab) || FIELD_GROUPS[0];
+    renderInputFields(formEl, group, state, onChange);
   }
 
   function renderReferenceTabs() {
@@ -459,9 +478,13 @@ export async function initApp(root) {
     updateUrl(state);
   }
 
-  function onChange(key, value) {
+  // rerender=true (default): structural change (toggle/select/tab) — rebuild the
+  // field list so showIf visibility updates. rerender=false: a slider/number
+  // tweak — leave the live element alone, just refresh the tab dots and results.
+  function onChange(key, value, rerender = true) {
     state = { ...state, [key]: value };
-    renderInputs();
+    if (rerender) renderInputs();
+    else refreshTabDots();
     recompute();
   }
 
