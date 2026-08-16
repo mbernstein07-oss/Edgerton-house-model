@@ -198,6 +198,13 @@ test("sensitivitySweep: higher appreciation never makes breakeven later", () => 
   assert.ok(breakevens[0] >= breakevens[1] && breakevens[1] >= breakevens[2], `expected non-increasing breakeven years, got ${breakevens}`);
 });
 
+test("sensitivitySweep: gapAtHorizon shrinks (buying gets relatively cheaper) as appreciation rises", () => {
+  const sweep = sensitivitySweep(DEFAULT_INPUTS, "homeAppreciationRate", [0.0, 0.03, 0.06]);
+  const gaps = sweep.map((s) => s.gapAtHorizon);
+  assert.ok(gaps.every((g) => Number.isFinite(g)), `expected all gaps finite, got ${gaps}`);
+  assert.ok(gaps[0] >= gaps[1] && gaps[1] >= gaps[2], `expected non-increasing gap as appreciation rises, got ${gaps}`);
+});
+
 // --- report --------------------------------------------------------------------
 
 console.log(`${passed}/${passed + failures.length} tests passed`);

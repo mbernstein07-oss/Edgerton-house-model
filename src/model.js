@@ -254,10 +254,13 @@ export function runModel(inputs) {
 }
 
 // Runs the model across a small grid of values for one lever, holding
-// everything else fixed, and reports the resulting breakeven year for each.
+// everything else fixed, and reports the resulting breakeven year for each —
+// plus the net-cost gap at the horizon (buy minus Airbnb; negative = buying
+// ahead), so a lever that never reaches breakeven still shows whether it's
+// closing the gap or widening it.
 export function sensitivitySweep(inputs, lever, values) {
   return values.map((value) => {
     const result = runModel({ ...inputs, [lever]: value });
-    return { value, breakevenYear: result.breakevenYear };
+    return { value, breakevenYear: result.breakevenYear, gapAtHorizon: result.summary.buyMinusAirbnbAtHorizon };
   });
 }

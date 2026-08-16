@@ -294,14 +294,20 @@ function renderInputFields(container, group, state, onChange) {
 function renderSummary(container, result) {
   const { breakevenYear, summary, upfrontCash, inputs } = result;
   const horizon = inputs.horizonYears;
-  const year1 = result.years[1] || result.years[result.years.length - 1];
   const last = result.years[result.years.length - 1];
 
-  const annualAirbnb = year1.airbnb.annualCost;
-  const annualOwn = year1.buy.annualCashOutflow; // carrying cost, net of any rental income
   const cashAirbnb = last.airbnb.cumulativeCost;
-  const cashBuy = last.buy.cumulativeCashOutflow;
+  const cashBuy = last.buy.cumulativeCashOutflow; // includes the one-time upfront cash
   const netGap = summary.buyMinusAirbnbAtHorizon; // >0 means buying costs that much more, even after resale
+
+  // Averaged over the horizon, not a year-1 snapshot: a year-1 number doesn't
+  // move at all when you change the Airbnb growth rate, appreciation, or the
+  // horizon length itself (those only affect later years), which made the
+  // headline look unresponsive to exactly the inputs most worth feeling.
+  // Upfront cash is pulled out of the "own" average since it's a one-time
+  // cost, not a recurring annual one — it's still called out separately below.
+  const avgAirbnb = cashAirbnb / horizon;
+  const avgOwn = (cashBuy - upfrontCash) / horizon;
 
   const headline = breakevenYear
     ? `Owning a ${fmtUSD(inputs.purchasePrice)} house pays off in year ${breakevenYear}`
@@ -317,14 +323,14 @@ function renderSummary(container, result) {
       <div class="summary-compare">
         <div class="compare-col">
           <div class="compare-label">Keep Airbnb-ing</div>
-          <div class="compare-big">${fmtUSD(annualAirbnb)}<span>/yr</span></div>
-          <div class="compare-sub">${fmtUSD(cashAirbnb)} paid over ${horizon} yrs</div>
+          <div class="compare-big">${fmtUSD(avgAirbnb)}<span>/yr avg</span></div>
+          <div class="compare-sub">${fmtUSD(cashAirbnb)} total over ${horizon} yrs</div>
         </div>
         <div class="compare-vs">vs</div>
         <div class="compare-col">
           <div class="compare-label">Own the house</div>
-          <div class="compare-big">${fmtUSD(annualOwn)}<span>/yr</span></div>
-          <div class="compare-sub">+ ${fmtUSD(upfrontCash)} upfront · ${fmtUSD(cashBuy)} over ${horizon} yrs</div>
+          <div class="compare-big">${fmtUSD(avgOwn)}<span>/yr avg</span></div>
+          <div class="compare-sub">+ ${fmtUSD(upfrontCash)} upfront · ${fmtUSD(cashBuy)} total over ${horizon} yrs</div>
         </div>
       </div>
       <div class="summary-footnote ${breakevenYear ? "positive" : "negative"}">${footnote}</div>
@@ -332,29 +338,73 @@ function renderSummary(container, result) {
   `;
 }
 
-function renderSensitivity(container, state) {
+function renderSensitivity(container, state, result) {
+  const horizon = state.horizonYears;
+  const currentGap = result.summary.buyMinusAirbnbAtHorizon;
+
+  // Home appreciation and the alternative-investment return are always
+  // relevant (appreciation drives what the house is worth if sold; the
+  // alt-return drives what unspent cash would otherwise earn — including
+  // for an all-cash purchase, where that's often the single biggest lever).
+  // Interest rate and occupancy only apply under the toggles that use them.
   const levers = [
-    { key: "homeAppreciationRate", label: "Home appreciation", scale: 100, deltas: [-0.01, 0, 0.01], unit: "%" },
-    ...(state.financing === "mortgage" ? [{ key: "interestRate", label: "Interest rate", scale: 100, deltas: [-0.005, 0, 0.005], unit: "%" }] : []),
-    ...(state.usageMode === "rental" ? [{ key: "occupancyRate", label: "Occupancy", scale: 100, deltas: [-0.15, 0, 0.15], unit: "%" }] : []),
+    { key: "homeAppreciationRate", label: "Home appreciation", scale: 100, digits: 1, deltas: [-0.01, 0, 0.01] },
+    { key: "altInvestmentReturn", label: "Alternative investment return", scale: 100, digits: 1, deltas: [-0.02, 0, 0.02] },
+    ...(state.financing === "mortgage" ? [{ key: "interestRate", label: "Mortgage interest rate", scale: 100, digits: 2, deltas: [-0.005, 0, 0.005] }] : []),
+    ...(state.usageMode === "rental" ? [{ key: "occupancyRate", label: "Rental occupancy", scale: 100, digits: 0, deltas: [-0.15, 0, 0.15] }] : []),
   ];
 
-  const rows = levers.map((lever) => {
-    const values = lever.deltas.map((d) => Math.max(0, state[lever.key] + d));
-    const sweep = sensitivitySweep(state, lever.key, values);
-    const cells = sweep
-      .map((s, i) => {
-        const shown = (s.value * lever.scale).toFixed(1);
-        const tag = lever.deltas[i] === 0 ? "current" : "";
-        return `<td class="${tag}">${shown}${lever.unit}<br><span class="be">${s.breakevenYear ? "yr " + s.breakevenYear : "never"}</span></td>`;
-      })
-      .join("");
-    return `<tr><th>${lever.label}</th>${cells}</tr>`;
-  });
+  if (levers.length === 0) {
+    container.innerHTML = `<p class="muted">No sensitivity levers available for the current toggles.</p>`;
+    return;
+  }
 
-  container.innerHTML = rows.length
-    ? `<table class="sensitivity-table"><tbody>${rows.join("")}</tbody></table>`
-    : `<p class="muted">No sensitivity levers available for the current toggles.</p>`;
+  const sweeps = levers.map((lever) => ({
+    lever,
+    sweep: sensitivitySweep(
+      state,
+      lever.key,
+      lever.deltas.map((d) => Math.max(0, state[lever.key] + d))
+    ),
+  }));
+
+  const allNever = sweeps.every(({ sweep }) => sweep.every((s) => s.breakevenYear === null));
+
+  const intro = result.breakevenYear
+    ? `As things stand, this scenario breaks even in year ${result.breakevenYear}. Below: how that shifts if these assumptions come in higher or lower than expected instead — the shaded middle column is what you've currently got set.`
+    : `As things stand, this scenario doesn't break even within ${horizon} years — it ends about ${fmtUSD(Math.abs(currentGap))} behind. Below: whether nudging these assumptions higher or lower gets it any closer — the shaded middle column is what you've currently got set.`;
+
+  const rows = sweeps
+    .map(({ lever, sweep }) => {
+      const currentLabel = `${(state[lever.key] * lever.scale).toFixed(lever.digits)}%`;
+      const cells = sweep
+        .map((s, i) => {
+          const valueLabel = `${(s.value * lever.scale).toFixed(lever.digits)}%`;
+          const outcomeLabel = s.breakevenYear
+            ? `breaks even yr ${s.breakevenYear}`
+            : `${fmtUSD(Math.abs(s.gapAtHorizon))} behind`;
+          const tag = [lever.deltas[i] === 0 ? "current" : "", s.breakevenYear ? "hits-breakeven" : ""].filter(Boolean).join(" ");
+          return `<td class="${tag}">${valueLabel}<br><span class="be">${outcomeLabel}</span></td>`;
+        })
+        .join("");
+      return `<tr><th>${lever.label}<br><span class="lever-current">now ${currentLabel}</span></th>${cells}</tr>`;
+    })
+    .join("");
+
+  const note = allNever
+    ? `<p class="sensitivity-note">None of these, on their own, get this scenario to break even within ${horizon} years — the gap is too large for a realistic swing in appreciation, investment returns, interest, or occupancy alone to close. The bigger levers are purchase price, financing, and whether you rent it out — those live on the Purchase and Usage tabs.</p>`
+    : "";
+
+  container.innerHTML = `
+    <p class="sensitivity-intro muted">${intro}</p>
+    <div class="table-scroll">
+      <table class="sensitivity-table">
+        <thead><tr><th>Assumption</th><th>Lower</th><th>Current</th><th>Higher</th></tr></thead>
+        <tbody>${rows}</tbody>
+      </table>
+    </div>
+    ${note}
+  `;
 }
 
 function renderHistoryPanel(container, aggregate) {
@@ -651,7 +701,7 @@ export async function initApp(root) {
     const result = runModel(state);
     renderSummary(summaryEl, result);
     renderCostChart(chartCanvas, result, chartMode);
-    renderSensitivity(sensitivityEl, state);
+    renderSensitivity(sensitivityEl, state, result);
     updateUrl(state);
   }
 

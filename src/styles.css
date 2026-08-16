@@ -263,6 +263,11 @@ select {
   display: flex;
   flex-direction: column;
   gap: 20px;
+  /* Grid items get an implicit min-width:auto, sized to their widest
+     descendant's content — without this, the sensitivity table's
+     min-width forces this whole column (and the page) wider than the
+     viewport instead of scrolling internally within .table-scroll. */
+  min-width: 0;
 }
 
 #summary {
@@ -390,8 +395,38 @@ th, td {
 }
 th { color: var(--ink-soft); font-weight: 600; }
 
-.sensitivity-table td.current { background: var(--accent-soft); }
-.sensitivity-table .be { color: var(--ink-faint); font-size: 0.8rem; }
+.sensitivity-intro {
+  margin: 0 0 12px;
+  line-height: 1.5;
+}
+
+.table-scroll {
+  overflow-x: auto;
+}
+
+.sensitivity-table { min-width: 480px; }
+.sensitivity-table th:first-child { min-width: 150px; }
+.lever-current {
+  display: block;
+  font-weight: 400;
+  color: var(--ink-faint);
+  font-size: 0.78rem;
+  margin-top: 1px;
+}
+.sensitivity-table td.current { background: var(--accent-soft); font-weight: 600; }
+.sensitivity-table td.hits-breakeven .be { color: var(--accent); font-weight: 600; }
+.sensitivity-table .be { display: block; color: var(--ink-faint); font-size: 0.8rem; margin-top: 2px; }
+
+.sensitivity-note {
+  margin: 14px 0 0;
+  padding: 10px 12px;
+  border: 1px solid var(--hairline);
+  border-radius: 6px;
+  background: var(--paper);
+  font-size: 0.85rem;
+  line-height: 1.5;
+  color: var(--ink-soft);
+}
 
 .scenario-save-row {
   display: flex;
