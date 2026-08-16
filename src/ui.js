@@ -1,6 +1,7 @@
 import { DEFAULT_INPUTS, runModel, sensitivitySweep } from "./model.js";
 import { loadHistory, aggregateHistory, historyToInputOverrides } from "./history.js";
 import { renderCostChart } from "./charts.js";
+import { listScenarios, saveScenario, deleteScenario, summarizeScenario } from "./scenarios.js";
 
 const CHART_MODES = [
   {
@@ -127,6 +128,26 @@ function updateUrl(inputs) {
   if (encoded) url.searchParams.set(STATE_PARAM, encoded);
   else url.searchParams.delete(STATE_PARAM);
   window.history.replaceState({}, "", url);
+}
+
+// Shareable URL for an arbitrary inputs object (e.g. a saved scenario),
+// independent of the page's own address bar / history state.
+function shareUrlFor(inputs) {
+  const encoded = encodeState(inputs);
+  const url = new URL(window.location.href);
+  if (encoded) url.searchParams.set(STATE_PARAM, encoded);
+  else url.searchParams.delete(STATE_PARAM);
+  return url.toString();
+}
+
+// All keys DEFAULT_INPUTS defines — the canonical full key set, used to
+// compare two inputs objects (a saved scenario may predate a newer field).
+function inputsEqual(a, b) {
+  return Object.keys(DEFAULT_INPUTS).every((k) => a[k] === b[k]);
+}
+
+function escapeHtml(str) {
+  return String(str).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
 }
 
 function displayValue(field, rawValue) {
@@ -372,6 +393,120 @@ function renderHistoryPanel(container, aggregate) {
   `;
 }
 
+function renderScenarioRow(scenario, { isCurrent, onLoad, onDelete, onCopyLink }) {
+  const row = document.createElement("div");
+  row.className = "scenario-row" + (isCurrent ? " current" : "");
+
+  const info = document.createElement("div");
+  info.className = "scenario-info";
+  info.innerHTML = `
+    <div class="scenario-name">${escapeHtml(scenario.name)}${isCurrent ? '<span class="scenario-current-badge">currently viewing</span>' : ""}</div>
+    <div class="scenario-summary muted">${escapeHtml(summarizeScenario(scenario.inputs))}</div>
+    <div class="scenario-date muted">Saved ${new Date(scenario.savedAt).toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" })}</div>
+  `;
+  row.appendChild(info);
+
+  const actions = document.createElement("div");
+  actions.className = "scenario-actions";
+
+  const loadBtn = document.createElement("button");
+  loadBtn.type = "button";
+  loadBtn.textContent = "Load";
+  loadBtn.disabled = isCurrent;
+  loadBtn.addEventListener("click", () => onLoad(scenario));
+  actions.appendChild(loadBtn);
+
+  const copyBtn = document.createElement("button");
+  copyBtn.type = "button";
+  copyBtn.textContent = "Copy link";
+  copyBtn.addEventListener("click", async () => {
+    const ok = await onCopyLink(scenario);
+    copyBtn.textContent = ok ? "Copied!" : "Copy failed";
+    setTimeout(() => (copyBtn.textContent = "Copy link"), 1600);
+  });
+  actions.appendChild(copyBtn);
+
+  const deleteBtn = document.createElement("button");
+  deleteBtn.type = "button";
+  deleteBtn.className = "scenario-delete";
+  deleteBtn.textContent = "Delete";
+  let confirming = false;
+  let revertTimer = null;
+  deleteBtn.addEventListener("click", () => {
+    if (!confirming) {
+      confirming = true;
+      deleteBtn.textContent = "Confirm delete?";
+      deleteBtn.classList.add("confirm");
+      revertTimer = setTimeout(() => {
+        confirming = false;
+        deleteBtn.textContent = "Delete";
+        deleteBtn.classList.remove("confirm");
+      }, 3000);
+    } else {
+      clearTimeout(revertTimer);
+      onDelete(scenario);
+    }
+  });
+  actions.appendChild(deleteBtn);
+
+  row.appendChild(actions);
+  return row;
+}
+
+function renderScenariosPanel(container, { scenarios, state, effectiveDefaults, onSave, onLoad, onDelete, onCopyLink }) {
+  // A background input change (e.g. dragging a slider elsewhere) can trigger
+  // a re-render while someone has a scenario name half-typed but not yet
+  // saved — carry that text across the rebuild instead of wiping it.
+  const priorName = container.querySelector(".scenario-name-input")?.value ?? "";
+
+  container.innerHTML = "";
+
+  const saveRow = document.createElement("div");
+  saveRow.className = "scenario-save-row";
+  const nameInput = document.createElement("input");
+  nameInput.type = "text";
+  nameInput.placeholder = 'Name this scenario, e.g. "Cash, rent when vacant"';
+  nameInput.className = "scenario-name-input";
+  nameInput.value = priorName;
+  const saveBtn = document.createElement("button");
+  saveBtn.type = "button";
+  saveBtn.textContent = "Save current inputs";
+  const doSave = () => {
+    const name = nameInput.value.trim();
+    if (!name) {
+      nameInput.focus();
+      return;
+    }
+    onSave(name);
+    nameInput.value = "";
+  };
+  saveBtn.addEventListener("click", doSave);
+  nameInput.addEventListener("keydown", (e) => {
+    if (e.key === "Enter") doSave();
+  });
+  saveRow.appendChild(nameInput);
+  saveRow.appendChild(saveBtn);
+  container.appendChild(saveRow);
+
+  if (scenarios.length === 0) {
+    const p = document.createElement("p");
+    p.className = "muted scenario-empty";
+    p.textContent =
+      'No saved scenarios yet. Dial in a set of inputs, name it (e.g. "Cash, personal use only" or "Mortgage, rent when vacant"), and save it here to come back to later or compare against another — each one keeps its own full copy of every input.';
+    container.appendChild(p);
+    return;
+  }
+
+  const list = document.createElement("div");
+  list.className = "scenario-list";
+  for (const scenario of scenarios) {
+    const merged = { ...effectiveDefaults, ...scenario.inputs };
+    const isCurrent = inputsEqual(state, merged);
+    list.appendChild(renderScenarioRow(scenario, { isCurrent, onLoad, onDelete, onCopyLink }));
+  }
+  container.appendChild(list);
+}
+
 export async function initApp(root) {
   let historyAggregate = null;
   let historyOverrides = {};
@@ -387,6 +522,7 @@ export async function initApp(root) {
   let activeInputTab = FIELD_GROUPS[0].id;
   let activeReferenceTab = "sensitivity";
   let chartMode = "cash";
+  let scenarios = listScenarios();
 
   const inputTabBarEl = root.querySelector("#input-tab-bar");
   const formEl = root.querySelector("#input-form");
@@ -397,6 +533,7 @@ export async function initApp(root) {
   const referenceTabBarEl = root.querySelector("#reference-tab-bar");
   const sensitivityEl = root.querySelector("#sensitivity");
   const historyEl = root.querySelector("#history-panel");
+  const scenariosEl = root.querySelector("#scenarios-panel");
   const copyBtn = root.querySelector("#copy-link-btn");
   const resetBtn = root.querySelector("#reset-btn");
 
@@ -459,6 +596,7 @@ export async function initApp(root) {
       [
         { id: "sensitivity", label: "Sensitivity" },
         { id: "history", label: `Trip history${tripCount ? ` (${tripCount})` : ""}` },
+        { id: "scenarios", label: `Scenarios${scenarios.length ? ` (${scenarios.length})` : ""}` },
       ],
       activeReferenceTab,
       (tabId) => {
@@ -468,6 +606,45 @@ export async function initApp(root) {
     );
     sensitivityEl.hidden = activeReferenceTab !== "sensitivity";
     historyEl.hidden = activeReferenceTab !== "history";
+    scenariosEl.hidden = activeReferenceTab !== "scenarios";
+    if (activeReferenceTab === "scenarios") renderScenarios();
+  }
+
+  async function copyToClipboard(text, onDone) {
+    try {
+      await navigator.clipboard.writeText(text);
+      onDone(true);
+    } catch (e) {
+      onDone(false);
+    }
+  }
+
+  function renderScenarios() {
+    renderScenariosPanel(scenariosEl, {
+      scenarios,
+      state,
+      effectiveDefaults,
+      onSave: (name) => {
+        saveScenario(name, state);
+        scenarios = listScenarios();
+        renderReferenceTabs(); // updates the "(n)" count + re-renders the list
+      },
+      onLoad: (scenario) => {
+        state = { ...effectiveDefaults, ...scenario.inputs };
+        renderInputs();
+        recompute();
+        renderScenarios(); // refresh "currently viewing" badges
+      },
+      onDelete: (scenario) => {
+        deleteScenario(scenario.id);
+        scenarios = listScenarios();
+        renderReferenceTabs();
+      },
+      onCopyLink: (scenario) =>
+        new Promise((resolve) => {
+          copyToClipboard(shareUrlFor({ ...effectiveDefaults, ...scenario.inputs }), resolve);
+        }),
+    });
   }
 
   function recompute() {
@@ -486,6 +663,10 @@ export async function initApp(root) {
     if (rerender) renderInputs();
     else refreshTabDots();
     recompute();
+    // Keep the "currently viewing" badge honest if that tab happens to be
+    // open — cheap (small separate panel) and never touches the field the
+    // user is actively dragging/typing in.
+    if (activeReferenceTab === "scenarios") renderScenarios();
   }
 
   renderInputs();
@@ -509,5 +690,6 @@ export async function initApp(root) {
     state = { ...DEFAULT_INPUTS, ...historyOverrides };
     renderInputs();
     recompute();
+    if (activeReferenceTab === "scenarios") renderScenarios();
   });
 }

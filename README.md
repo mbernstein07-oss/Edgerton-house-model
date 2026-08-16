@@ -15,7 +15,19 @@ Live at: `https://mbernstein07-oss.github.io/edgerton-house-model/` once GitHub 
 - The **summary card** leads with the head-to-head annual numbers (`$X/yr on Airbnb` vs `$Y/yr to own`, plus upfront cash and 10-year totals) and a one-line plain-English verdict, so the bottom line is legible without reading the chart.
 - Shows a small **sensitivity table**: how the breakeven year shifts if appreciation, mortgage rate, or (when renting) occupancy comes in higher or lower than assumed.
 - Seeds several inputs from **real historical trip data** pulled from Gmail — not just the Airbnb baseline (nightly rate, nights/trip, trips/year) but also how many nights a year you'd personally use a house (≈ how many nights you already travel to the area) and, if you rent it out, the nightly rate a comparable local place commands (≈ what you've been paying). Every seeded value stays an ordinary editable input; the trip table backing them is auditable in the "Trip history" tab. See below.
-- Inputs are organized as **tabs** (Airbnb / Purchase / Ownership / Usage / Financial) instead of one long scroll, with a dot on any tab that's been changed from its default. The summary card stays pinned at the top of the results column while you tune inputs. A small "Sensitivity & history" jump link appears at the top on narrow screens.
+- Inputs are organized as **tabs** (Airbnb / Purchase / Ownership / Usage / Financial) instead of one long scroll, with a dot on any tab that's been changed from its default. The summary card stays pinned at the top of the results column while you tune inputs. A small "Sensitivity, history & scenarios" jump link appears at the top on narrow screens.
+- **Save named scenarios** to come back to later or compare against each other — see below.
+
+## Saving scenarios
+
+The "Scenarios" tab (next to Sensitivity and Trip history) lets you name and save the *entire* current set of inputs, then reload it later with one click. It's for comparing a handful of named setups against each other — "Cash, personal use only" vs. "Mortgage, rent when vacant" — without re-dialing every slider each time.
+
+- **Save**: type a name, click "Save current inputs." It stores a full snapshot of every input at that moment (not a diff against current defaults), so a saved scenario reproduces exactly what was on screen when you saved it, even if the app's defaults change later.
+- **Load**: brings every input back to that snapshot. A row shows a "currently viewing" badge and a disabled Load button when the live inputs match it exactly.
+- **Copy link**: generates a shareable URL for that scenario specifically (same encoding as the toolbar's "Copy shareable link," just without needing to load it first).
+- **Delete**: click once to arm ("Confirm delete?"), click again within a few seconds to actually delete — or let it auto-cancel.
+
+Scenarios are stored in the browser's `localStorage`, scoped to this page's origin. That means: they're **per-browser, not synced** — they won't show up if you open the page in a different browser, a different device, or an incognito window, and clearing site data removes them. They also don't get bundled into a shared link automatically; if you want someone else to see a saved scenario, use its "Copy link" button and send that URL. See `src/scenarios.js` for the storage logic and `tests/scenarios.test.js` for its sanity checks (using an in-memory `localStorage` shim, since Node has no such global).
 
 ## Project layout
 
@@ -24,11 +36,13 @@ index.html              entry point — loads Chart.js, styles, then src/ui.js
 data/airbnb-history.json   historical Airbnb trips (see "Historical data" below)
 src/model.js             pure calculation functions — no DOM, unit-testable
 src/history.js           loads + aggregates airbnb-history.json into defaults
+src/scenarios.js         localStorage-backed named-scenario save/load/delete
 src/ui.js                renders the input form, wires events, syncs the URL
 src/charts.js            Chart.js line-chart rendering
 src/styles.css           theme-aware (light/dark) styling
 vendor/chart.umd.min.js  Chart.js, vendored so the page has no CDN dependency
 tests/model.test.js      plain-Node sanity checks on the math
+tests/scenarios.test.js  plain-Node sanity checks on scenario storage
 ```
 
 `model.js` never touches the DOM — it's a set of pure functions in, plain objects out — so the math can be tested and reused independently of the UI (and reasoned about without opening a browser).
@@ -45,10 +59,10 @@ Any static server works — the only requirement is that `fetch("./data/airbnb-h
 ## Running the tests
 
 ```bash
-node tests/model.test.js    # or: npm test
+npm test    # or: node tests/model.test.js && node tests/scenarios.test.js
 ```
 
-No test framework or `npm install` required — it's a plain Node script using the built-in `assert` module, importing `src/model.js` directly as an ES module.
+No test framework or `npm install` required — both are plain Node scripts using the built-in `assert` module, importing straight from `src/*.js` as ES modules.
 
 ## Deploying to GitHub Pages
 

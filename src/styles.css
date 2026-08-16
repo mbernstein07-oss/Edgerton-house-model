@@ -393,6 +393,92 @@ th { color: var(--ink-soft); font-weight: 600; }
 .sensitivity-table td.current { background: var(--accent-soft); }
 .sensitivity-table .be { color: var(--ink-faint); font-size: 0.8rem; }
 
+.scenario-save-row {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 16px;
+  flex-wrap: wrap;
+}
+.scenario-name-input {
+  flex: 1;
+  min-width: 200px;
+  padding: 8px 10px;
+  border: 1px solid var(--hairline-strong);
+  border-radius: 6px;
+  background: var(--paper);
+  color: var(--ink);
+  font: inherit;
+}
+.scenario-save-row button {
+  white-space: nowrap;
+  background: var(--accent);
+  border-color: var(--accent);
+  color: white;
+}
+.scenario-save-row button:hover { opacity: 0.9; color: white; }
+
+.scenario-empty { margin: 4px 0 0; line-height: 1.5; }
+
+.scenario-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.scenario-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 12px;
+  border: 1px solid var(--hairline);
+  border-radius: 8px;
+  flex-wrap: wrap;
+}
+.scenario-row.current {
+  border-color: var(--accent);
+  background: var(--accent-soft);
+}
+
+.scenario-info { min-width: 0; }
+.scenario-name {
+  font-weight: 600;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.scenario-current-badge {
+  font-size: 0.68rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  color: var(--accent);
+  border: 1px solid var(--accent);
+  border-radius: 999px;
+  padding: 1px 8px;
+}
+.scenario-summary { font-size: 0.85rem; margin-top: 2px; }
+.scenario-date { font-size: 0.75rem; margin-top: 2px; }
+
+.scenario-actions {
+  display: flex;
+  gap: 6px;
+  flex-shrink: 0;
+}
+.scenario-actions button { font-size: 0.82rem; padding: 6px 10px; }
+.scenario-actions button:disabled {
+  opacity: 0.5;
+  cursor: default;
+  border-color: var(--hairline);
+  color: var(--ink-faint);
+}
+.scenario-delete.confirm {
+  background: var(--warn);
+  border-color: var(--warn);
+  color: white;
+}
+
 footer.app-footer {
   margin-top: 30px;
   color: var(--ink-faint);
